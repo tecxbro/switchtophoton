@@ -1,22 +1,38 @@
 # LoopMessage source reference
 
-## Official documentation
+No approved official agent-readable documentation source is currently registered for this provider.
 
-- Legacy API documentation: https://loopmessage.com/apidocs/
-- Next-generation documentation: https://docs.loopmessage.com
-- API-generation announcement: https://loopmessage.com/helpdesk/whats-new-in-the-next-generation-api/
+Do not add or open ordinary LoopMessage documentation, help-center, marketing, or API links. Rely on the inspected repository and report the documentation gap.
 
-## Detection and version cues
+## Detection and generation evidence
 
-Look for:
+Retain only fingerprints supported by repository evidence, such as:
 
-- legacy `https://server.loopmessage.com/api/v1/...` endpoints;
-- status lookup paths such as `/api/v1/message/status/{id}`;
-- LoopMessage-specific credentials, sender aliases, webhook/callback configuration, and consent/sign-up flows;
-- newer hosts, paths, schemas, SDKs, or docs associated with the next-generation API.
+- legacy `server.loopmessage.com/api/v1` endpoints;
+- status lookup paths under `/api/v1`;
+- LoopMessage-specific credential and environment-variable names;
+- sender aliases or pools;
+- webhook or callback configuration;
+- consent, sign-up, deep-link, or inbound-first eligibility flows;
+- newer hosts, paths, schemas, packages, or generated clients found in active code.
 
-LoopMessage announced a redesigned next-generation API beginning in late 2025. Do not apply legacy v1 assumptions to newer code. If the current next-generation docs cannot be resolved, use the repository's exact wire formats and report uncertainty in the plan.
+Do not assume legacy v1 or a newer generation from product history. Report the exact active host, paths, headers, fields, tests, fixtures, and locked package versions. If generation cannot be proven, report `Unknown generation`; low confidence blocks automatic execution.
 
-## Inventory and traps
+## Capabilities to inventory
 
-Inventory inbound-first consent requirements, sender pools/names, dedicated versus shared senders, outbound eligibility, sending, media, status polling, callbacks, deep links, webhook retries, identifiers, and any CRM-specific integration behavior.
+Inventory only active behavior, including:
+
+- inbound-first consent and outbound eligibility;
+- shared versus dedicated sender behavior;
+- sender pools and aliases;
+- text and media sends;
+- status polling and callbacks;
+- webhook authentication, acknowledgement, retries, deduplication, and ordering;
+- deep links and opt-in flow;
+- message, conversation, sender, and event identifiers;
+- CRM-specific transport behavior;
+- lifecycle, timeout, and error handling.
+
+## Migration traps
+
+Consent and outbound-eligibility rules may be product behavior, not provider setup. Sender identity and pooling may also be visible behavior. Do not remove either silently. Any unresolved generation or capability mapping must be a blocker in the plan.
