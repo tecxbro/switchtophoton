@@ -1,90 +1,98 @@
 ---
 name: switch-to-photon
 description: >
-  Migrate an existing iMessage or messaging integration from Sendblue, Linq, BlueBubbles, Blooio, LoopMessage,
-  Texting Blue, or another provider to Photon while preserving the product's current behavior. Use when the user
-  asks to switch, migrate, replace, or move an existing messaging provider to Photon. First inspect the repository
-  read-only, detect the source provider, SDK/API generation, integration architecture, and capabilities actually
-  used, then present a concrete migration plan and wait for explicit approval before editing. After approval,
-  create or use a `switch-to-photon` branch, choose the closest official Photon surface, replace only the existing
-  provider behavior, run the repository's verification commands, review the complete diff, and report manual
-  credential or dashboard steps. Do not add new messaging features, redesign the product, or perform unrelated
-  refactors.
-  Keywords: switch to photon, migrate to photon, replace sendblue, replace linq, sendblue migration, linq migration,
-  bluebubbles migration, blooio migration, loopmessage migration, texting blue migration, imessage provider migration,
-  photon spectrum, photon imessage, messaging transport migration, parity migration, provider replacement.
+  Switch to Photon by inspecting and planning a parity-only replacement of an existing iMessage or messaging
+  provider. Use for Switch to Photon, migrate to Photon, replace Sendblue, replace Linq, BlueBubbles migration,
+  Blooio migration, LoopMessage migration, Texting Blue migration, iMessage-provider migration,
+  messaging-provider replacement, provider parity migration, Photon Spectrum migration, Photon Webhook migration,
+  Photon HTTP Proxy migration, Advanced iMessage Kit migration, self-hosted iMessage Kit migration, Photon MCP
+  migration, or Vercel Chat SDK chat-adapter-imessage migration. Detect the exact source SDK version, REST API
+  generation, webhook generation, mixed generation, active capabilities, and architecture before selecting Photon.
+  Remain read-only until a complete plan is shown and the user's latest message explicitly contains the exact
+  approval phrase. Execute only approved behavior, stop for scope changes, protect secrets, and verify the final
+  implementation against the approved plan.
 license: MIT
 metadata:
   author: tecxbro
-  version: '1.1.0'
 ---
 
 # Switch to Photon
 
-Switch an existing messaging integration to Photon without changing what the product does.
+Replace an existing messaging-provider boundary with the closest Photon product without redesigning the application.
 
-## Migration contract
+## Core migration contract
 
-These rules are non-negotiable:
+These rules are mandatory:
 
-1. **Plan before edits.** Inspect read-only, show the migration plan to the user, and wait for explicit approval before changing files, dependencies, Git refs, or configuration.
-2. **Parity only.** Migrate only capabilities the repository currently uses.
-3. **No product redesign.** Preserve prompts, business logic, workflows, data ownership, UI, and user-visible behavior.
-4. **No speculative features.** Do not add Photon capabilities unless the existing integration already uses equivalent behavior.
-5. **Smallest safe diff.** Replace the provider boundary instead of rewriting application code.
-6. **Safe Git isolation.** After approval, create or use `switch-to-photon`. Never modify or merge the default branch directly.
-7. **Source code is the truth.** Determine usage from call sites, handlers, schemas, tests, lockfiles, and configuration—not from a provider's feature list.
-8. **Version-aware migration.** Detect the installed SDK version or REST/webhook generation before selecting documentation or mappings.
-9. **Current official documentation.** Use official `llms.txt`, Markdown docs, OpenAPI files, SDK references, and Photon Agent Skills.
-10. **No silent guesses.** If a used capability has no confirmed Photon equivalent, identify the blocker in the plan and do not delete the old behavior.
-11. **No secret exposure.** Never print, copy, commit, or rewrite real credential values.
-12. **Prove the migration.** Do not claim completion until verification has run or the exact unverified items are reported.
+1. Inspect before editing.
+2. Plan before execution.
+3. Show the complete plan to the user.
+4. Stop after showing the plan.
+5. Execute only after the user's latest message explicitly contains `APPROVE SWITCH TO PHOTON PLAN`.
+6. Migrate only capabilities already used by active code, tests, storage, or deployment configuration.
+7. Do not introduce new Photon features.
+8. Do not refactor unrelated application code.
+9. Detect the exact source SDK version or API generation.
+10. Do not assume the application uses the latest source-provider API.
+11. Select the Photon product that most closely preserves the existing architecture.
+12. Do not expose, copy, print, or commit real secrets.
+13. Verify the completed implementation against the approved plan.
+14. Do not claim completion while required behavior is blocked or unverified.
 
-## How this skill is organized
+## Mandatory decision order
 
-Read only the files needed for the detected migration:
+```text
+Inspect repository
+→ detect source provider
+→ detect exact source version or API generation
+→ identify active source capabilities
+→ read the matching source-provider reference
+→ select the closest Photon target
+→ build parity plan
+→ request approval
+→ execute
+→ verify
+```
 
-| File | When to consult |
+Do not select Photon APIs before source-provider detection is complete.
+
+## When to consult
+
+| Stage or provider | Read |
 |---|---|
-| [`workflow.md`](./workflow.md) | Read-only inspection, version detection, mandatory plan gate, branch creation, and execution. |
-| [`plan-template.md`](./plan-template.md) | Exact plan that must be shown before any migration edit. |
-| [`providers/index.md`](./providers/index.md) | Detect the source provider and route to its focused reference. |
-| [`providers/sendblue.md`](./providers/sendblue.md) | Sendblue SDK, REST, webhook, Chat SDK adapter, and legacy/current API patterns. |
-| [`providers/linq.md`](./providers/linq.md) | Linq V2, V3, SDK, webhook, identifier, and asynchronous-delivery differences. |
-| [`providers/bluebubbles.md`](./providers/bluebubbles.md) | BlueBubbles self-hosted REST and webhook integrations. |
-| [`providers/blooio.md`](./providers/blooio.md) | Blooio v2/v3/v4 API detection and migration concerns. |
-| [`providers/loopmessage.md`](./providers/loopmessage.md) | LoopMessage legacy v1 and next-generation API detection. |
-| [`providers/texting-blue.md`](./providers/texting-blue.md) | Texting Blue v1 REST and webhook integrations. |
-| [`photon-targets.md`](./photon-targets.md) | Choose the Photon surface that most closely matches the current architecture. |
-| [`verification.md`](./verification.md) | Parity checks, old-provider removal, complete diff review, and final report. |
+| Read-only inspection, approval gate, execution, or scope revision | [`workflow.md`](./workflow.md) |
+| Required user-facing migration plan | [`plan-template.md`](./plan-template.md) |
+| Provider routing and agent-readable documentation policy | [`providers/index.md`](./providers/index.md) |
+| Sendblue | [`providers/sendblue.md`](./providers/sendblue.md) |
+| Linq V2, V3, or mixed V2/V3 | [`providers/linq.md`](./providers/linq.md) |
+| BlueBubbles | [`providers/bluebubbles.md`](./providers/bluebubbles.md) |
+| Blooio | [`providers/blooio.md`](./providers/blooio.md) |
+| LoopMessage | [`providers/loopmessage.md`](./providers/loopmessage.md) |
+| Texting Blue | [`providers/texting-blue.md`](./providers/texting-blue.md) |
+| Photon architecture selection and official Photon skill routing | [`photon-targets.md`](./photon-targets.md) |
+| Post-migration proof and completion rules | [`verification.md`](./verification.md) |
 
-## Required workflow
+## Two hard phases
 
-1. Read [`workflow.md`](./workflow.md).
-2. Inspect the repository without making changes.
-3. Detect the provider, exact SDK/API generation, integration style, and capabilities actually used.
-4. Read [`providers/index.md`](./providers/index.md), then the matching provider reference and current official docs.
-5. Read [`photon-targets.md`](./photon-targets.md) and select the closest Photon surface.
-6. Produce the plan in [`plan-template.md`](./plan-template.md), show it to the user, and **stop**.
-7. Continue only after explicit approval.
-8. Create or switch to `switch-to-photon`, then implement the approved plan with the smallest safe diff.
-9. Read [`verification.md`](./verification.md), run the checks, and review every changed file.
-10. Report what changed, what was intentionally not added, what passed, and which manual setup remains.
+### PHASE 1 — INSPECT AND PLAN
 
-## Official Photon references
+Read [`workflow.md`](./workflow.md), inspect without changing repository state, produce the exact plan from [`plan-template.md`](./plan-template.md), show it, and stop.
 
-Start from the live Photon documentation index:
+### PHASE 2 — EXECUTE THE APPROVED PLAN
+
+Enter Phase 2 only when the user's latest message explicitly contains:
+
+```text
+APPROVE SWITCH TO PHOTON PLAN
+```
+
+“Looks good,” “continue,” “go ahead,” or similar wording is not approval. After approval, create or use `switch-to-photon`, execute only the approved scope, and verify with [`verification.md`](./verification.md). Any scope expansion requires a revised plan and the exact approval phrase again.
+
+## Photon sources
+
+After source detection and target selection, load the corresponding official Photon Agent Skill and consult Photon's agent-readable documentation:
 
 - https://docs.photon.codes/docs/llms.txt
 - https://github.com/photon-hq/skills
 
-Use the matching Photon Agent Skill when relevant:
-
-```bash
-npx skills add photon-hq/skills --skill spectrum
-npx skills add photon-hq/skills --skill imessage
-npx skills add photon-hq/skills --skill chat-adapter-imessage
-npx skills add photon-hq/skills --skill photon-cli
-```
-
-Install or consult only the skill relevant to the selected target. Do not introduce several Photon products when one preserves the existing architecture.
+Do not copy broad Photon documentation into this skill. Use only the Photon skill relevant to the selected target.
