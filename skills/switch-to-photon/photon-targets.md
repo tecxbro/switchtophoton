@@ -1,44 +1,48 @@
 # Choosing the Photon target
 
-Select the Photon surface that most closely matches the repository's current architecture. The migration should feel like a provider replacement, not a platform rewrite.
+Select Photon only after the source provider, exact source generation, active capabilities, and current architecture are known. The target must preserve the existing implementation with the smallest safe change.
 
-Before choosing, read:
+Consult:
 
-- Photon documentation index: https://docs.photon.codes/docs/llms.txt
-- Photon official skills: https://github.com/photon-hq/skills
+- Photon agent-readable documentation: https://docs.photon.codes/docs/llms.txt
+- Photon official Agent Skills: https://github.com/photon-hq/skills
 
-| Existing architecture | Preferred Photon target | Use when |
-|---|---|---|
-| Vercel Chat SDK adapter | `chat-adapter-imessage` | The application already uses the Chat SDK adapter model. |
-| TypeScript app with a unified message stream or multi-platform abstraction | `spectrum-ts` through the `spectrum` skill | The app is event/stream based and Spectrum maps cleanly to its transport boundary. |
-| Existing HTTP webhook backend | Photon Webhook | The application already receives inbound HTTP events and should retain that shape. |
-| REST-based application or non-TypeScript stack | Photon Advanced iMessage HTTP Proxy | Preserving HTTP avoids a language/runtime rewrite. |
-| Managed TypeScript iMessage SDK or WebSocket client | `@photon-ai/advanced-imessage-kit` | The app expects a direct managed SDK with real-time events. |
-| Local macOS iMessage bridge | `@photon-ai/imessage-kit` | The system intentionally remains self-hosted on a Mac. |
-| Existing MCP-native messaging boundary | Photon MCP | The product already uses MCP tools; do not introduce MCP into ordinary backend code. |
-| Unified multi-platform messaging abstraction | Spectrum | The existing product needs to preserve a cross-platform provider abstraction rather than only an iMessage transport. |
+| Existing architecture | Photon target |
+|---|---|
+| Vercel Chat SDK adapter | Photon `chat-adapter-imessage` |
+| Unified TypeScript message stream | Spectrum |
+| Existing HTTP webhook backend | Photon Webhook |
+| REST application or non-TypeScript stack | Photon HTTP Proxy |
+| Managed TypeScript SDK or WebSocket client | Advanced iMessage Kit |
+| Local Mac integration | Self-hosted iMessage Kit |
+| Existing MCP-native product | Photon MCP |
+| Existing multi-platform transport abstraction | Spectrum |
 
 ## Selection rules
 
-1. Preserve the current language, framework, hosting model, and transport shape when possible.
-2. Prefer the target that changes the fewest application files.
-3. Do not force Spectrum into a simple REST replacement.
-4. Do not introduce an SDK into a non-TypeScript application when HTTP provides parity.
-5. Do not introduce MCP into ordinary backend code.
-6. Do not move a local/self-hosted integration to managed infrastructure without listing that architecture change in the plan.
-7. Do not move a managed provider to local Mac infrastructure merely to gain feature parity.
-8. If the source provider handles SMS/RCS/WhatsApp as well as iMessage, confirm whether Photon must replace those channels or only iMessage.
-9. Select based on capabilities actually used, not the maximum feature list of either provider.
-10. Explain the target choice in the plan before execution.
+1. Prefer the smallest architectural change.
+2. Preserve the current programming language.
+3. Preserve the hosting model when possible.
+4. Preserve the inbound and outbound transport shape.
+5. Do not introduce MCP into an ordinary backend.
+6. Do not force Spectrum into a simple REST migration.
+7. Do not move a managed provider to a local Mac without approval.
+8. Do not move a local provider to managed infrastructure without identifying the architecture change.
+9. Do not remove non-iMessage channels unless they are explicitly included in the approved scope.
+10. Select based on capabilities proven to be active, not either provider's maximum feature list.
+11. Load the corresponding official Photon Agent Skill after selecting the target.
+12. Use only the selected Photon product unless the approved plan proves that multiple surfaces are required.
 
-## Photon capability research
+## Target-specific routing
 
-After selecting a target:
+| Target | Preserve |
+|---|---|
+| `chat-adapter-imessage` | Existing Vercel Chat SDK adapter contracts and state flow |
+| Spectrum | Existing unified or multi-platform message/event abstraction |
+| Photon Webhook | Existing inbound HTTP webhook architecture and application handlers |
+| Photon HTTP Proxy | Existing REST boundary and non-TypeScript runtime |
+| Advanced iMessage Kit | Existing managed TypeScript SDK or WebSocket lifecycle |
+| Self-hosted iMessage Kit | Existing local Mac trust, hosting, and operational model |
+| Photon MCP | Existing MCP-native tool boundary only |
 
-1. read the corresponding official Photon skill;
-2. read current Photon docs for each used source capability;
-3. verify identifiers, authentication, event delivery, attachment handling, retries, idempotency, and lifecycle semantics;
-4. list any non-equivalence in the plan;
-5. do not invent credential names or API methods.
-
-Never place real credentials in committed files. Update only templates, validation, and setup documentation.
+After selection, confirm identifiers, authentication, event delivery, attachments, retries, idempotency, lifecycle, and credential names from the matching official Photon skill. Do not invent APIs or copy broad Photon documentation into this repository.
