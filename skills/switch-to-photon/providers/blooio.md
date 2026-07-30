@@ -1,24 +1,36 @@
 # Blooio source reference
 
-## Official documentation
+No approved official agent-readable documentation source is currently registered for this provider.
 
-- Documentation home: https://docs.blooio.com
-- v2 API reference: https://docs.blooio.com/reference/v2
-- v4 message fields: https://docs.blooio.com/guides/message-fields-v4
-- Quickstart: https://docs.blooio.com/quickstart
-- Webhooks: https://docs.blooio.com/webhooks
+Do not add or open ordinary Blooio documentation links. Rely on inspected repository evidence and report the documentation gap.
 
-## Detect the API generation
+## Detection and API-generation evidence
 
-- v2 commonly uses `https://api.blooio.com/v2/api/chats/{chat}/messages` and chat-addressed resources.
-- v4 commonly uses `https://api.blooio.com/v4/messages` and a unified multi-channel message shape.
-- v3 existed for enterprise functionality; do not assume v2 or v4 when `/v3` appears.
-- Authentication commonly uses a bearer API key with `bl_live_...`-style values; never expose the value.
+Use only evidence present in the repository, including:
 
-Check endpoint paths, response schemas, webhook event names, message fields, and any SDK/package lockfile before reporting the generation.
+- exact locked package or generated-client metadata;
+- Blooio API hosts and active base paths;
+- `/v2`, `/v3`, or `/v4` endpoint paths;
+- authentication-header shape and `BLOOIO` environment-variable names;
+- request, response, and webhook payload fields;
+- tests, fixtures, mocks, and deployment configuration.
 
-## Inventory and traps
+Existing repository fingerprints may indicate chat-addressed v2 paths or a unified v4 message path. Do not assume those fingerprints apply without matching active code. A `/v3` path must be reported separately rather than forced into v2 or v4.
 
-Inventory routing across iMessage/SMS/RCS/WhatsApp, explicit sender/channel selection, `chat_id`, `channel_id`, routing metadata, idempotency keys, message history/status, attachments, parts, polls, effects, replies, reactions, groups, contact/capability APIs, and webhooks.
+If an exact generation cannot be proven, report `Unknown generation` or `Mixed generations` and the appropriate confidence. Low confidence is a planning blocker.
 
-A unified multi-channel v4 integration may use Blooio for more than iMessage. Do not replace the full provider with an iMessage-only target unless the plan preserves or explicitly excludes other channels.
+## Capabilities to inventory
+
+Inventory proven use of:
+
+- iMessage, SMS, RCS, WhatsApp, or other channel routing;
+- explicit sender or channel selection;
+- chat, channel, message, participant, and event identifiers;
+- idempotency, retries, ordering, deduplication, and delivery state;
+- history, status, attachments, multipart content, polls, effects, replies, reactions, and groups;
+- contact or capability APIs;
+- webhooks, authentication, acknowledgement, and lifecycle.
+
+## Migration traps
+
+A unified multi-channel integration may use Blooio for more than iMessage. Do not replace it with an iMessage-only Photon target unless the approved plan preserves or explicitly excludes every other active channel. Do not claim exact parity from unsupported fingerprints or current assumptions.
