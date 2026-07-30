@@ -1,66 +1,54 @@
 # Switch to Photon
 
-A portable Agent Skill that helps existing coding agents migrate an iMessage or messaging integration to Photon without changing the product's behavior.
+Switch to Photon is a portable Agent Skill for existing coding agents such as Codex, Claude Code, Cursor, OpenCode, and GitHub Copilot. It is not a coding agent, SDK, CLI, MCP server, website, or hosted migration product.
+
+The skill inspects an existing messaging integration, identifies the source provider and its exact SDK or API generation, prepares a behavior-preserving migration plan, waits for explicit approval, replaces only the provider boundary, and verifies the completed migration against the approved plan.
 
 ## Install
-
-Install the skill directly from this repository:
 
 ```bash
 npx skills add tecxbro/switchtophoton --skill switch-to-photon
 ```
 
-You can also point directly to the skill folder:
-
-```bash
-npx skills add https://github.com/tecxbro/switchtophoton/tree/main/skills/switch-to-photon
-```
-
-No npm package publishing or additional repository configuration is required. The Skills CLI reads the public GitHub repository and automatically discovers `skills/switch-to-photon/SKILL.md`.
+The Skills CLI discovers the skill at `skills/switch-to-photon/SKILL.md`. No npm package is published by this repository.
 
 Requirements:
 
-- Node.js and npm, so `npx` is available.
-- A supported coding agent such as Codex, Claude Code, Cursor, OpenCode, or GitHub Copilot.
-- Internet access to download the Skills CLI and this repository.
+- Node.js and npm so `npx` is available.
+- A supported coding agent.
+- Access to the application repository being migrated.
 
-To preview the detected skill without installing it:
+## Safety model
 
-```bash
-npx skills add tecxbro/switchtophoton --list
+Switch to Photon uses two mandatory phases:
+
+1. **Inspect and plan.** The agent performs read-only repository inspection, detects the provider and exact generation, inventories only capabilities proven to be active, selects the closest Photon product, and shows a complete migration plan.
+2. **Execute the approved plan.** The agent may begin only when the user's latest message explicitly contains:
+
+```text
+APPROVE SWITCH TO PHOTON PLAN
 ```
 
-To install it globally for a specific coding agent:
+Responses such as “continue,” “go ahead,” or “looks good” do not approve execution.
 
-```bash
-npx skills add tecxbro/switchtophoton --skill switch-to-photon -g -a codex
-npx skills add tecxbro/switchtophoton --skill switch-to-photon -g -a claude-code
-npx skills add tecxbro/switchtophoton --skill switch-to-photon -g -a cursor
-```
+During execution, the agent creates or uses the `switch-to-photon` branch, changes only the approved provider boundary, and stops for a revised plan if new scope is required.
 
-Without `-g`, the CLI installs the skill into the current project. Without `-a`, it detects installed coding agents or asks which agent should receive the skill.
+## Migration principles
 
-## How it works
+- Detect the source provider before choosing Photon.
+- Detect the exact locked SDK version, REST generation, webhook generation, mixed generation, or report it as unknown.
+- Treat low-confidence detection as a planning blocker unless the user explicitly accepts the stated risk.
+- Migrate only behavior already used by active code, tests, storage, or deployment configuration.
+- Preserve the application's language, hosting model, internal message shape, business logic, prompts, UI, and non-iMessage channels unless the approved plan says otherwise.
+- Use only approved agent-readable provider documentation linked by the skill.
+- Select the Photon product that requires the smallest safe architectural change.
+- Verify repository checks, capability parity, old-provider removal, and the complete diff.
+- Never print, copy, or commit real secrets.
 
-1. Inspects the repository without changing anything.
-2. Detects the current provider and exact SDK or API generation.
-3. Reads the matching provider reference and current official documentation.
-4. Inventories only the messaging capabilities the product actually uses.
-5. Selects the closest Photon equivalent.
-6. Shows a detailed migration plan and waits for approval.
-7. After approval, creates or uses a `switch-to-photon` branch.
-8. Executes only the approved migration scope.
-9. Verifies behavior parity, removal of the old provider, and the complete diff.
+## Supported source-provider references
 
-## Supported source providers
+Focused references are included for Sendblue, Linq, BlueBubbles, Blooio, LoopMessage, and Texting Blue. Providers without verified official agent-readable documentation are handled from repository evidence and must be reported with the appropriate uncertainty.
 
-The skill includes detailed migration references for:
+## Ownership
 
-- Sendblue
-- Linq
-- BlueBubbles
-- Blooio
-- LoopMessage
-- Texting Blue
-
-It can also use a generic documentation-driven workflow for other messaging providers.
+This Agent Skill is authored and maintained by `tecxbro`. It is not part of `photon-hq/skills` and is not represented as officially maintained by Photon. Photon’s official Agent Skills and agent-readable documentation are used only as technical sources for the selected Photon target.
