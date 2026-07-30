@@ -1,101 +1,75 @@
 # Linq source reference
 
-Linq V2 and V3 are materially different. Detect the generation before planning any replacement.
+Linq V2 and V3 are materially different. Detect every active generation before planning.
 
-## Official documentation
+## Approved official documentation
 
-- LLM index: https://docs.linqapp.com/llms.txt
-- Complete LLM documentation: https://docs.linqapp.com/llms-full.txt
-- Canonical V3 OpenAPI: https://cdn.linqapp.com/openapi/linq-api-v3.yaml
-- V3 docs: https://docs.linqapp.com
-- V3 SDKs: https://docs.linqapp.com/getting-started/sdks
-- V2 legacy docs: https://docs.linqapp.com/v2
-- V2 API reference: https://docs.linqapp.com/v2/api
-- V2 → V3 breaking-change guide: https://docs.linqapp.com/guides/resources/migration-v2-to-v3
-- Webhooks: https://docs.linqapp.com/guides/webhooks
+- https://docs.linqapp.com/llms.txt
+- https://docs.linqapp.com/llms-full.txt
 
-Use the OpenAPI file for exact V3 endpoint and schema questions. Use V2 docs when repository evidence shows V2.
+Use only these sources and relevant official agent-readable references permitted by [`index.md`](./index.md). Do not open ordinary Linq HTML pages or OpenAPI YAML files.
 
 ## Detection fingerprints
 
-Look for:
+Search for:
 
-- packages/imports: `@linqapp/sdk`, `linq-python`, `github.com/linq-team/linq-go`, `@linqapp/chat-sdk-adapter`;
-- host: `api.linqapp.com`;
-- V2 base path: `/api/partner/v2`;
-- V3 base path: `/api/partner/v3`;
-- V2 auth: `X-LINQ-INTEGRATION-TOKEN`;
-- V3 auth: `Authorization: Bearer ...`;
-- environment names such as `LINQ_API_KEY`, `LINQ_API_V3_API_KEY`, integration token, webhook secret, or phone-number IDs;
-- V2 integer chat IDs and `chat_messages` resources;
-- V3 UUID chat IDs, `parts`, `trace_id`, `event_id`, `event_type`, attachment IDs, and nested chat/message resources.
+- packages/imports such as `@linqapp/sdk`, `linq-python`, Linq Go clients, or a Linq Chat SDK adapter;
+- exact locked SDK versions and generated-client metadata;
+- host `api.linqapp.com`;
+- V2 base path `/api/partner/v2`;
+- V3 base path `/api/partner/v3`;
+- V2 header `X-LINQ-INTEGRATION-TOKEN`;
+- V3 bearer authentication;
+- V2 integer identifiers and older `chat_messages` resources;
+- V3 UUID identifiers, `parts`, `trace_id`, `event_id`, `event_type`, attachment IDs, and nested resources;
+- webhook-version fields, tests, fixtures, and persisted identifier types.
 
-## Determine the version
+## Detect V2, V3, mixed use, and exact SDK version
 
 ### Linq V2
 
-Strong signals:
-
-- `/api/partner/v2`;
-- `X-LINQ-INTEGRATION-TOKEN`;
-- integer chat IDs;
-- paths such as `/v2/chats/{id}/chat_messages` or `/v2/chat_messages`;
-- top-level `text` and `attachments` fields;
-- older webhook payloads using `event` and older nested resource shapes.
+Evidence can include `/api/partner/v2`, `X-LINQ-INTEGRATION-TOKEN`, integer chat IDs, V2 `chat_messages` paths, top-level text/attachment fields, synchronous response assumptions, and older webhook shapes.
 
 ### Linq V3
 
-Strong signals:
-
-- `/api/partner/v3`;
-- bearer authentication;
-- official SDK class `LinqAPIV3`;
-- UUID chat IDs;
-- `message.parts[]` with typed text/media/link parts;
-- `trace_id` response correlation;
-- versioned webhooks using `event_type` and `event_id`;
-- asynchronous lifecycle events such as `message.sent`, `message.delivered`, and `message.failed`;
-- presigned attachment upload and `attachment_id` references.
+Evidence can include `/api/partner/v3`, bearer authentication, a generated V3 client, UUID identifiers, typed `message.parts[]`, `trace_id`, `event_id`, versioned webhook fields, asynchronous lifecycle events, and upload-before-send attachment IDs.
 
 ### Mixed V2/V3
 
-Linq permits V2 and V3 to coexist. Search all active call sites. A V3 migration endpoint or retained V2 contacts path does not by itself mean the main messaging flow is V2. Report each active path separately.
+Search every active call path. Report each generation and which capabilities use it. A retained V2 contact endpoint does not prove the main messaging flow is V2; a single V3 migration path does not prove the entire integration is V3.
 
-### Exact SDK version
+### Exact installed SDK
 
-When an SDK is used, read the exact locked package version and confirm whether its generated API targets V2 or V3. Do not use only the package name.
+Read the exact locked package version and determine which API generation its imported shape targets. Never report only a manifest range or assume the newest docs match it.
 
 ## Capabilities to inventory
 
 Check active use of:
 
-- creating or finding direct/group chats;
-- sending text and multi-part content;
+- direct and group chat creation or lookup;
+- text and multipart sends;
 - inbound messages and webhook subscriptions;
-- delivery/failure lifecycle and asynchronous state transitions;
-- `trace_id` observability;
-- `event_id` webhook deduplication;
-- send idempotency keys;
-- typing and read state;
-- reactions, replies, edits, and deletion/unsend semantics;
-- group participants, metadata, icons, and leaving groups;
-- attachments and presigned uploads;
-- voice memos, effects, rich links, decorations, and iMessage app content;
-- service selection or iMessage/RCS/SMS fallback;
-- capability checks;
-- contact cards, contacts, location, payments, or other non-message APIs;
-- phone-number/line IDs, reputation, rate limits, retries, and error codes;
-- webhook signatures and retry behavior;
-- persisted V2 integer chat IDs or V3 UUIDs.
+- synchronous versus asynchronous application state transitions;
+- delivery and failure lifecycle;
+- `trace_id` logging or correlation;
+- `event_id` deduplication;
+- send idempotency;
+- typing, read state, reactions, replies, edits, deletion, or unsend;
+- group participants, metadata, icons, and leave behavior;
+- attachment URLs versus presigned upload and `attachment_id` flows;
+- voice memos, effects, rich links, or decorations;
+- service selection and iMessage/RCS/SMS fallback;
+- phone-number or line IDs;
+- webhook authentication, acknowledgement, retries, ordering, and rate handling;
+- persisted V2 integers, V3 UUIDs, or mixed identifier storage;
+- non-messaging Linq features only to identify dependencies that must remain outside migration scope.
 
 ## Migration traps
 
-- V2 and V3 have different authentication, paths, body shapes, webhook schemas, and identifiers.
-- V3 is asynchronous. Do not replace a flow that waits for synchronous V2 success without preserving application state transitions.
-- `trace_id` may be used for support, logging, or event correlation and should not disappear accidentally.
-- `event_id` is the deduplication key for V3 webhook events; preserve at-least-once handling.
-- V2 chat IDs and V3 chat IDs are not interchangeable. Existing records may require a compatibility mapping.
-- V3 attachments can require upload-before-send, unlike URL-based V2 code.
-- Linq's V2 contacts functionality may remain in a repository even when messaging is V3. Do not delete non-messaging provider use without including it in the plan.
-- Service selection and fallback are product behavior when explicitly used.
-- Do not migrate Linq-only features such as payments or Agentcard unless the user explicitly includes them; report them as separate non-transport dependencies.
+- V2 and V3 differ in authentication, paths, payloads, webhook schemas, identifiers, and timing.
+- Replacing synchronous V2 behavior with asynchronous V3-style behavior can break application state.
+- `trace_id` may be operationally required.
+- `event_id` may be the webhook deduplication key.
+- Integer and UUID identifiers are not interchangeable; existing records may need aliases or boundary translation.
+- Attachment flows can require different sequencing.
+- Do not delete Linq-only non-messaging functionality unless separately approved.
