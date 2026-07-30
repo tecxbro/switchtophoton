@@ -1,25 +1,46 @@
 # Source-provider index
 
-Detect the provider from repository evidence, then read only the matching file. The links below are live official references; do not copy their complete contents into this skill.
+Detect the source provider and exact generation from repository evidence before selecting Photon. Then read only the matching provider file.
 
-| Provider | Read | Primary official references | Strong fingerprints |
+## Agent-readable documentation policy
+
+Use only official agent-readable documentation linked by this skill:
+
+1. Official `llms.txt`
+2. Official `llms-full.txt`
+3. Official Markdown files ending in `.md`
+
+Do not directly link to normal documentation homepages, ordinary HTML pages, dashboards, marketing pages, API explorers, Swagger pages, GitHub repository roots, `.yaml` or `.json` OpenAPI files, unofficial mirrors, or blog posts.
+
+When a provider does not publish an approved agent-readable source:
+
+- rely on the repository's lockfiles, imports, API calls, payloads, fixtures, and tests;
+- report that no approved agent-readable documentation was available;
+- do not assume the latest API generation;
+- treat low-confidence provider or version detection as a planning blocker.
+
+Following a link from an approved `llms.txt` is allowed only when the linked resource is itself an official agent-readable source permitted by this policy. Do not substitute an ordinary page.
+
+## Provider routing
+
+| Provider | Read | Approved official agent-readable sources | Strong repository fingerprints |
 |---|---|---|---|
-| Sendblue | [`sendblue.md`](./sendblue.md) | `https://docs.sendblue.com/llms.txt`, `https://docs.sendblue.com/api` | `sendblue`, `chat-adapter-sendblue`, `api.sendblue.com`, `api.sendblue.co`, `sb-api-key-id`, `/api/send-message` |
-| Linq | [`linq.md`](./linq.md) | `https://docs.linqapp.com/llms.txt`, `https://docs.linqapp.com/llms-full.txt`, `https://cdn.linqapp.com/openapi/linq-api-v3.yaml` | `@linqapp/sdk`, `linq-python`, `api.linqapp.com/api/partner/v2|v3`, `X-LINQ-INTEGRATION-TOKEN`, `event_id` |
-| BlueBubbles | [`bluebubbles.md`](./bluebubbles.md) | `https://docs.bluebubbles.app/server/developer-guides/rest-api-and-webhooks` | BlueBubbles server URL, `/api/v1`, `guid`/`password`/`token` query auth, BlueBubbles webhook events |
-| Blooio | [`blooio.md`](./blooio.md) | `https://docs.blooio.com`, `https://docs.blooio.com/reference/v2`, `https://docs.blooio.com/guides/message-fields-v4` | `api.blooio.com/v2`, `api.blooio.com/v4`, `bl_live_`, `BLOOIO_API_KEY` |
-| LoopMessage | [`loopmessage.md`](./loopmessage.md) | `https://loopmessage.com/apidocs/`, `https://docs.loopmessage.com` | `server.loopmessage.com/api/v1`, LoopMessage credential/webhook fields |
-| Texting Blue | [`texting-blue.md`](./texting-blue.md) | `https://docs.texting.blue`, `https://github.com/textingblue/imessage-api` | `api.texting.blue/v1`, `TEXTING_BLUE_API_KEY`, `message.received` |
+| Sendblue | [`sendblue.md`](./sendblue.md) | `https://docs.sendblue.com/llms.txt` | `sendblue`, `chat-adapter-sendblue`, Sendblue API hosts, `sb-api-key-id`, `/api/send-message` |
+| Linq | [`linq.md`](./linq.md) | `https://docs.linqapp.com/llms.txt`, `https://docs.linqapp.com/llms-full.txt` | `@linqapp/sdk`, `/api/partner/v2`, `/api/partner/v3`, `X-LINQ-INTEGRATION-TOKEN`, bearer auth, `event_id` |
+| BlueBubbles | [`bluebubbles.md`](./bluebubbles.md) | `https://github.com/BlueBubblesApp/bluebubbles-docs/blob/master/server/developer-guides/rest-api-and-webhooks.md`, `https://github.com/BlueBubblesApp/bluebubbles-docs/blob/master/server/SUMMARY.md` | self-hosted server URL, `/api/v1`, server auth, webhook events, local Mac dependencies |
+| Blooio | [`blooio.md`](./blooio.md) | None registered | Blooio API hosts/paths, `BLOOIO_API_KEY`, provider-specific payloads |
+| LoopMessage | [`loopmessage.md`](./loopmessage.md) | None registered | `server.loopmessage.com/api/v1`, LoopMessage credentials, callbacks, consent flow |
+| Texting Blue | [`texting-blue.md`](./texting-blue.md) | `https://github.com/textingblue/imessage-api/blob/main/README.md` | `api.texting.blue/v1`, `TEXTING_BLUE_API_KEY`, `message.received` |
 
 ## Unknown or custom providers
 
-If no reference matches:
+If no provider matches:
 
-1. identify the provider from official package metadata, API host ownership, deployment docs, and webhook payloads;
-2. find its current official docs, OpenAPI, SDK reference, or `llms.txt`;
-3. document detection evidence and version confidence in the plan;
-4. build a capability inventory from source code;
-5. do not execute on low-confidence detection;
-6. do not add a permanent provider reference unless its official documentation and fingerprints are verified.
+1. identify the provider from locked package metadata, imported API shape, host ownership, deployment configuration, and wire payloads;
+2. use an external source only when it meets this policy;
+3. report exact evidence, generation result, and confidence;
+4. inventory capabilities from active repository behavior;
+5. do not execute on low-confidence detection without explicit risk acceptance;
+6. do not add a permanent provider reference until official agent-readable documentation and fingerprints are verified.
 
-Do not confuse similarly named products. For example, Sendblue is not the former email platform Sendinblue/Brevo.
+Do not confuse similarly named products. Sendblue is not Sendinblue/Brevo.
