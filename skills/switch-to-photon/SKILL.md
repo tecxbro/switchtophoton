@@ -15,7 +15,7 @@ description: >
   photon spectrum, photon imessage, messaging transport migration, parity migration, provider replacement.
 license: MIT
 metadata:
-  author: photon-hq
+  author: tecxbro
   version: '1.1.0'
 ---
 
