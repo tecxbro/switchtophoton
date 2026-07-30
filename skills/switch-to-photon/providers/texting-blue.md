@@ -1,18 +1,41 @@
 # Texting Blue source reference
 
-## Official documentation
+Use this file only after repository evidence indicates Texting Blue.
 
-- API reference: https://docs.texting.blue
-- Authentication: https://docs.texting.blue/api/authentication/
-- Webhooks: https://docs.texting.blue/api/webhooks/
-- Official API example repository: https://github.com/textingblue/imessage-api
+## Approved official documentation
 
-## Detection and version cues
+- https://github.com/textingblue/imessage-api/blob/main/README.md
 
-Look for `https://api.texting.blue/v1`, bearer/API-key authentication, `/v1/messages/send`, `/v1/webhooks`, `/v1/numbers`, `message.received`, and environment names containing `TEXTING_BLUE`.
+Use only this official Markdown README. Do not use ordinary documentation pages or the GitHub repository root.
 
-Confirm the exact endpoint and webhook schema from the current docs and repository fixtures. The service can involve an iPhone connection/shortcut and number provisioning, so record the current operational dependency in the plan.
+## Detection and generation evidence
 
-## Inventory and traps
+Look for combinations of:
 
-Inventory sends, inbound webhooks, delivery statuses, media, phone-number/shortcut setup, webhook verification, rate limits, retries, message IDs, and any requirement to keep a physical iPhone connected. Do not treat hardware/shortcut removal as a trivial dependency change.
+- exact locked package or vendored-client metadata;
+- `api.texting.blue/v1` in active code or configuration;
+- `/v1/messages/send`, webhook, or number-management paths;
+- bearer or API-key authentication shape;
+- environment names containing `TEXTING_BLUE`;
+- webhook events such as `message.received`;
+- request, response, status, and message-ID fields in tests or fixtures;
+- physical iPhone, shortcut, number-provisioning, or connectivity setup in deployment documentation.
+
+Report the exact installed SDK version when present. For raw HTTP, report the known REST and webhook generation from paths and payloads. Do not assume the README's current behavior matches older repository code.
+
+## Capabilities to inventory
+
+Inventory active use of:
+
+- outbound text and media;
+- inbound webhooks;
+- delivery and failure status;
+- message identifiers and persisted compatibility;
+- number or sender selection;
+- webhook verification, acknowledgement, retries, deduplication, and ordering;
+- rate limits, application retries, timeout, and error handling;
+- physical iPhone, shortcut, provisioning, or always-connected operational dependencies.
+
+## Migration traps
+
+Hardware or shortcut removal is an architecture and operations change, not a trivial dependency replacement. The plan must identify it, choose the closest Photon hosting model, and obtain approval. Preserve stored message identifiers or provide an approved compatibility boundary.
