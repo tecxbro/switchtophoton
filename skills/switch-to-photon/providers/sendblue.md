@@ -1,101 +1,68 @@
 # Sendblue source reference
 
-Use this file to recognize how the repository uses Sendblue. Fetch current official details instead of duplicating the full documentation here.
+Use this file only after repository evidence indicates Sendblue.
 
-## Official documentation
+## Approved official documentation
 
-- LLM index: https://docs.sendblue.com/llms.txt
-- Introduction and guides: https://docs.sendblue.com/
-- API reference and current SDK versions: https://docs.sendblue.com/api
-- API v2 overview: https://docs.sendblue.com/api-v2
-- Sending: https://docs.sendblue.com/getting-started/sending-messages
-- Receiving: https://docs.sendblue.com/getting-started/receiving-messages
-- Webhooks: https://docs.sendblue.com/getting-started/webhooks
-- TypeScript SDK reference: https://docs.sendblue.com/api/typescript
-- Chat SDK adapter: https://docs.sendblue.com/guides/chat-sdk-adapter
+- https://docs.sendblue.com/llms.txt
 
-Read the `llms.txt` index first, then only the pages relevant to capabilities found in the repository.
+Begin with the official `llms.txt`. Follow only relevant official agent-readable references that also satisfy the policy in [`index.md`](./index.md). Do not open ordinary Sendblue HTML documentation as a substitute.
 
 ## Detection fingerprints
 
-Look for combinations of:
+Confirm combinations of:
 
-- packages/imports: `sendblue`, `chat-adapter-sendblue`, `sendblue-api-mcp`, `@sendblue/cli`;
-- hosts: `api.sendblue.com`, `api.sendblue.co`;
-- headers: `sb-api-key-id`, `sb-api-secret-key`, `sb-signing-secret`;
-- environment names containing `SENDBLUE`, commonly API key, secret, from-number, webhook, or signing-secret values;
-- current endpoints such as `/api/send-message`, `/api/send-group-message`, `/api/v2/messages`, `/api/status`, `/api/account/webhooks`, `/api/send-typing-indicator`, `/api/send-reaction`, `/api/mark-read`;
-- older endpoints such as `/accounts/messages`;
-- webhook fields such as `message_handle`, `from_number`, `to_number`, `sendblue_number`, `media_url`, `is_outbound`, `service`, `group_id`, `participants`, `send_style`, and `was_downgraded`.
+- packages or imports such as `sendblue`, `chat-adapter-sendblue`, `sendblue-api-mcp`, or `@sendblue/cli`;
+- Sendblue API hosts found in active code or configuration;
+- authentication headers such as `sb-api-key-id`, `sb-api-secret-key`, or signing-secret headers;
+- environment-variable names containing `SENDBLUE`;
+- endpoint patterns including `/api/send-message`, `/api/send-group-message`, `/api/v2/messages`, status, webhook, typing, reaction, and read paths;
+- older resource patterns such as `/accounts/messages`;
+- webhook fields such as `message_handle`, `from_number`, `to_number`, `sendblue_number`, `media_url`, `is_outbound`, `service`, `group_id`, `participants`, `send_style`, or `was_downgraded`.
 
-A name alone is insufficient; confirm runtime calls or payloads.
+A name alone is insufficient. Confirm active calls, handlers, fixtures, or deployment configuration.
 
-## Determine the integration generation
+## Detect the exact SDK or REST generation
 
-Report one or more of these:
-
-### Official SDK
-
-- Read the exact installed `sendblue` version from the lockfile.
-- Confirm imported methods against the matching official SDK reference.
-- Do not infer the SDK version from the latest docs page.
-
-### Current raw REST
-
-Common signals:
-
-- `/api/send-message` for outbound sends;
-- `/api/v2/messages` for message retrieval;
-- API key and secret headers;
-- account-level webhook CRUD;
-- modern features under `/api/v2/*` while some send operations remain under `/api/*`.
-
-This can legitimately be a mixed path structure; do not label it legacy merely because every endpoint is not under `/api/v2`.
-
-### Legacy raw REST
-
-Possible signals include older hosts or resources such as `/accounts/messages`, old response casing, old fixtures, or old Sendblue wrappers. Treat the exact repository wire format as authoritative and locate historical official docs when possible.
-
-### Chat SDK adapter
-
-Look for `chat-adapter-sendblue`, Chat SDK state adapters, adapter initialization, and provider-specific webhook handling. This normally maps to Photon's Chat SDK adapter rather than a full application rewrite.
-
-### CLI or MCP usage
-
-If the product invokes Sendblue through a CLI or MCP tools rather than application code, preserve that boundary. Do not replace it with an SDK unless the approved Photon target requires it.
+- Read the exact installed SDK version from lockfiles, generated metadata, or vendored package files.
+- Confirm imported classes and methods against the approved agent-readable source when available.
+- For raw REST, report the exact active host, base path, endpoints, headers, and wire fields.
+- Distinguish an official SDK, current raw REST, legacy raw REST, Chat SDK adapter, CLI/MCP boundary, or mixed integration.
+- Do not label all `/api/*` sends as legacy merely because retrieval or newer features use `/api/v2/*`.
+- Do not infer the installed generation from current documentation.
+- If historical behavior cannot be matched to an approved source, use repository fixtures and tests and report uncertainty.
 
 ## Capabilities to inventory
 
-Check whether active code uses:
+Check active use of:
 
-- direct sends: `number`, `from_number`, `content`;
-- media through `media_url`, upload APIs, captions, file limits, and voice-note formatting;
-- inbound `receive` webhooks;
-- outbound/status callbacks and the statuses the application depends on;
-- message history or polling through `/api/v2/messages` or older retrieval endpoints;
-- `message_handle` for deduplication, status lookup, reactions, replies, or persistence;
-- sender-line selection and any sticky relationship between recipient and `from_number`;
-- automatic iMessage/SMS/RCS fallback and `service` or `was_downgraded` handling;
-- typing indicators;
-- read receipts;
-- reactions and `part_index`;
-- inline replies and `reply_to.message_handle`;
-- direct/group messaging, `group_id`, participants, group modification, and group correlation;
-- message effects through `send_style`;
-- contacts, opt-out state, contact cards, line provisioning, carousels, location, calling, or FaceTime;
-- webhook signing, acknowledgement, retry, and duplicate-delivery behavior;
-- rate limits, queues, idempotency, and application retries.
+- direct and group sends;
+- message identifiers and durable use of `message_handle`;
+- inbound message and status webhooks;
+- webhook acknowledgement, signing, retries, and deduplication;
+- attachments, media URLs, captions, size limits, download timing, and voice-note handling;
+- delivery and failure statuses;
+- line selection and sticky `from_number` behavior;
+- replies and reply identifiers;
+- reactions and part indices;
+- typing indicators and read receipts;
+- group IDs, participants, group changes, and correlation;
+- message effects;
+- SMS/RCS fallback, `service`, and downgrade behavior;
+- history or polling;
+- idempotency, application retries, ordering, queues, and rate handling;
+- contacts, opt-out state, contact cards, line provisioning, calling, or FaceTime only when active code proves use.
 
-Only mapped capabilities belong in the migration plan.
+Only proven capabilities belong in the plan.
 
 ## Migration traps
 
-- `from_number` may be required and may be expected to remain consistent for a conversation.
-- `message_handle` may be a durable application dependency, not merely a transport field.
-- Webhook delivery can be repeated; preserve deduplication and return/acknowledgement behavior.
-- A status callback and an account webhook may both feed lifecycle state; do not accidentally process both twice.
-- SMS/RCS fallback can be product behavior. Do not silently remove it when moving to an iMessage-only Photon surface.
-- Group conversations may depend on `group_id` as their only stable correlator.
-- Media URLs, expiry, maximum size, and download timing may differ from Photon attachments.
-- Deleting a provider record is not necessarily equivalent to unsending an iMessage.
-- New Sendblue features in current docs are out of scope unless the repository already uses them.
+- A stored `message_handle` may be an application dependency, not a disposable transport field.
+- Repeated webhook delivery requires existing deduplication and acknowledgement behavior to remain intact.
+- Status callbacks and account webhooks may overlap; avoid double-processing.
+- Sender-line consistency may be product behavior.
+- SMS/RCS fallback must not disappear silently.
+- Group messaging may depend on `group_id` as the stable correlator.
+- Attachment URL lifetime and limits may differ from Photon.
+- Provider-record deletion is not necessarily iMessage unsend.
+- Current Sendblue features not used by the repository are out of scope.
