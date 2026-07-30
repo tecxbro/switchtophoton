@@ -1,181 +1,209 @@
 # Migration workflow
 
-The workflow has two hard phases: **plan** and **execute**. Do not combine them.
+The workflow has two hard phases. Do not combine them.
 
-## Phase 1 — Inspect and plan (read-only)
+## Mandatory decision order
 
-### 1. Establish repository state
+```text
+Inspect repository
+→ detect source provider
+→ detect exact source version or API generation
+→ identify active source capabilities
+→ read the matching source-provider reference
+→ select the closest Photon target
+→ build parity plan
+→ request approval
+→ execute
+→ verify
+```
 
-Without changing anything:
+Do not begin by choosing Photon APIs.
 
-- identify the repository root, current branch, and default branch;
-- inspect `git status`;
-- record the starting commit;
-- identify package managers, languages, frameworks, test commands, and deployment model;
-- preserve unrelated uncommitted changes;
-- do not create a branch, edit a file, install a package, reformat code, or change configuration yet.
+# PHASE 1 — INSPECT AND PLAN
 
-If inspection cannot be completed safely because the working tree is ambiguous, explain that in the plan.
+Phase 1 is read-only.
 
-### 2. Detect the source provider
+During Phase 1, do not:
 
-Search the entire repository, including:
+- edit, create, delete, rename, or reformat files;
+- create or switch branches;
+- install, remove, or update dependencies;
+- change configuration or environment files;
+- modify Git refs;
+- run destructive commands;
+- push commits;
+- open pull requests;
+- make any repository change.
 
-- manifests and lockfiles;
-- imports, generated clients, adapters, and wrappers;
-- API hosts, paths, headers, environment variables, and secrets schemas;
-- inbound webhook, polling, WebSocket, stream, MCP, or adapter handlers;
-- outbound send functions;
-- attachment upload/download code;
-- typing, read receipt, reaction, reply, group, edit, unsend, status, fallback, and line-selection code;
-- persisted provider message, chat, conversation, line, participant, and event identifiers;
-- retries, idempotency, deduplication, ordering, timeout, shutdown, and error handling;
-- tests, fixtures, mocks, deployment files, setup scripts, and documentation.
+## 1. Establish repository state
 
-Read [`providers/index.md`](./providers/index.md), then the matching provider file.
+Record:
 
-### 3. Determine the version or API generation
+- repository root;
+- default branch;
+- current branch;
+- starting commit;
+- clean or dirty working-tree state;
+- unrelated changes that must be preserved;
+- languages, frameworks, package managers, deployment model, and available verification commands.
+
+If repository state is ambiguous, report it as a blocker rather than altering it.
+
+## 2. Detect the source provider
+
+Search the complete repository, including:
+
+- lockfiles and package manifests;
+- imports, generated clients, vendored SDKs, wrappers, and adapters;
+- HTTP hosts, base paths, endpoint paths, and authentication headers;
+- environment-variable schemas and deployment configuration;
+- webhook routes and stream or WebSocket consumers;
+- outbound send calls and attachment handlers;
+- provider message IDs, conversation IDs, participant IDs, line IDs, and event IDs;
+- retry, idempotency, deduplication, ordering, timeout, shutdown, and error handling;
+- tests, fixtures, mocks, and setup documentation.
+
+A provider name or comment alone is not sufficient. Confirm active runtime or test evidence.
+
+Read [`providers/index.md`](./providers/index.md), then only the matching provider file.
+
+## 3. Detect exact SDK or API generation
 
 Use evidence in this order:
 
-1. **Exact locked SDK version** from a lockfile, generated metadata, or vendored package.
-2. **Package family and imported API shape** when a lockfile is absent.
-3. **API host, base path, endpoint names, and authentication headers** for raw HTTP integrations.
-4. **Request/response and webhook payload shapes**, especially version fields and identifier formats.
-5. **Tests and fixtures** that reveal the expected wire format.
-6. **Comments or documentation** only as supporting evidence.
+1. Exact locked SDK version.
+2. Generated package metadata or vendored SDK version.
+3. Package name and imported API shape.
+4. API hostname and base path.
+5. Authentication headers.
+6. Request and response fields.
+7. Webhook payload shape.
+8. Tests and fixtures.
+9. Comments and internal documentation only as supporting evidence.
 
-Rules:
+Report exactly one or more of:
 
-- If the project uses an SDK, report its exact installed version when available—not only the manifest range.
-- If the project calls REST directly, report the API family, such as `Sendblue legacy REST`, `Linq V2`, `Linq V3`, or `Blooio v4`.
-- If signals from multiple generations coexist, report `mixed` and identify which paths are active.
-- Do not assume the latest provider API merely because the latest documentation exists.
-- If historical documentation is unavailable, use the repository's types, fixtures, and tests as the source of truth and state the uncertainty.
+- `Exact SDK version`
+- `Known REST API generation`
+- `Known webhook generation`
+- `Mixed generations`
+- `Unknown generation`
 
-Give the detection a confidence level:
+Examples include `Sendblue TypeScript SDK 3.2.1`, `Sendblue raw REST using /api/send-message`, `Linq V2`, `Linq V3`, `Mixed Linq V2/V3`, `Blooio v4`, or `BlueBubbles server generation unknown`.
 
-- **High:** lockfile/version plus matching code and wire format;
-- **Medium:** multiple matching HTTP or payload fingerprints but no exact package version;
-- **Low:** provider inferred from names with incomplete runtime evidence.
+Report confidence:
 
-Low-confidence detection is a planning blocker. Do not edit until resolved or explicitly accepted by the user.
+- **High:** exact version or generation plus matching runtime and wire-format evidence.
+- **Medium:** multiple matching runtime fingerprints but no exact package or server version.
+- **Low:** incomplete or conflicting evidence.
 
-### 4. Confirm current official documentation
+Low-confidence detection blocks automatic execution. The plan must state the risk. Phase 2 remains blocked unless the user both uses the exact approval phrase and explicitly accepts that stated risk.
 
-Read the source provider's official docs linked from its provider file. Prefer, in order:
+Never assume current documentation matches the repository's installed generation.
 
-1. versioned OpenAPI or SDK reference;
-2. official `llms.txt` / `llms-full.txt`;
-3. official Markdown documentation pages;
-4. official repository and changelog;
-5. official HTML documentation.
+## 4. Read approved source-provider documentation
 
-Then read the current Photon docs and the relevant Photon skill. Use live docs to confirm APIs, but keep the migration aligned to the source version actually found in the repository.
+Follow the policy in [`providers/index.md`](./providers/index.md). Use only official `llms.txt`, official `llms-full.txt`, or official Markdown files ending in `.md` that are linked by this skill.
 
-### 5. Inventory used capabilities
+When no approved source is registered, rely on repository evidence, report the absence, and treat unresolved version uncertainty as a planning blocker.
 
-A capability counts as used only when active code invokes, receives, persists, tests, or operationally depends on it.
+## 5. Inventory active capabilities
 
-Check at least:
+A capability is in scope only when active code, tests, stored data, or deployment configuration proves the application uses or operationally depends on it.
 
-- inbound text;
-- outbound text;
-- direct and group conversations;
-- sender or line selection;
-- attachments, media uploads, downloads, and voice notes;
-- replies and thread references;
-- reactions and tapbacks;
-- typing indicators;
-- read receipts;
-- message effects;
-- edits and unsends;
-- delivery and failure statuses;
-- polling or message history;
-- SMS/RCS fallback and service detection;
-- contact cards, contacts, opt-out, or compliance behavior;
-- webhook authentication, retries, and acknowledgement;
-- message/event deduplication and send idempotency;
-- stored provider IDs and existing-record compatibility.
+Inspect inbound and outbound text, direct and group messaging, line selection, attachments, replies, reactions, typing, read state, effects, edits, unsends, delivery states, history or polling, SMS/RCS fallback, webhook authentication and acknowledgement, retries, idempotency, deduplication, ordering, lifecycle, and persisted provider identifiers.
 
-Do not map unused provider features.
+List unused source-provider and Photon features as intentionally excluded. Do not map or add them.
 
-### 6. Choose the Photon target
+## 6. Select the closest Photon target
 
-Read [`photon-targets.md`](./photon-targets.md). Select the Photon surface that preserves the current language, framework, hosting model, and inbound/outbound architecture with the fewest changes.
+Read [`photon-targets.md`](./photon-targets.md). Preserve the language, hosting model, inbound and outbound transport shape, and internal application message shape with the smallest safe change.
 
-### 7. Build and show the migration plan
+After selecting the target, load only the corresponding official Photon Agent Skill and confirm the required Photon APIs from official agent-readable sources.
 
-Use [`plan-template.md`](./plan-template.md). The plan must include:
+## 7. Build and show the plan
 
-- source provider and detected generation/version;
-- evidence and confidence;
-- current architecture;
-- capabilities used and intentionally out of scope;
-- chosen Photon target and rationale;
-- one-to-one behavior mapping;
-- files expected to change;
-- dependencies and environment variables to replace;
-- persisted identifiers and compatibility strategy;
-- tests and verification commands;
-- manual Photon setup;
-- blockers, risks, and anything not equivalent.
+Use [`plan-template.md`](./plan-template.md) exactly. Show the complete plan and end the response with:
 
-Show the plan to the user and stop. End with a direct approval request such as:
+```text
+To approve this exact migration plan, reply:
 
-> Approve this plan and I will create `switch-to-photon` and execute only this scope.
+APPROVE SWITCH TO PHOTON PLAN
+```
 
-Do not make migration changes in the same turn as the first plan unless the user had already reviewed and explicitly approved that exact plan.
+Then stop. Do not make migration changes in the same response.
 
-## Phase 2 — Execute the approved plan
+## Native plan-mode recommendation
 
-### 8. Create the migration branch
+Use the coding product's native Plan, Ask, or read-only mode when available. The portable Phase 1 protocol remains mandatory whether or not a native mode exists. Do not claim this skill can programmatically enable a product-specific mode, and do not invent unsupported product commands.
 
-After approval:
+# PHASE 2 — EXECUTE THE APPROVED PLAN
 
-- verify the starting commit and working tree have not unexpectedly changed;
-- create and switch to `switch-to-photon` before editing;
-- if the branch already exists, inspect it and never reset or overwrite it blindly;
-- do not push, open a pull request, merge, or modify the default branch unless explicitly requested.
+Enter Phase 2 only when the user's latest message explicitly contains:
 
-### 9. Replace the provider boundary
+```text
+APPROVE SWITCH TO PHOTON PLAN
+```
 
-Implement only the approved plan:
+A vague response such as “looks good,” “continue,” or “go ahead” does not satisfy the gate.
 
-- keep application handlers and business logic intact;
-- introduce or update a thin Photon transport boundary;
-- translate Photon events into the application's existing internal message shape;
-- preserve application-level conversation and user identifiers where possible;
-- translate provider identifiers at the boundary;
-- replace initialization and shutdown cleanly;
-- replace provider environment names, templates, validation, and setup docs without exposing secrets;
-- preserve documented retry, ordering, deduplication, idempotency, timeout, attachment, and error semantics;
-- keep compatibility fields when existing records still need them;
-- remove the old dependency and dead path only after replacement tests pass.
+## 8. Reconfirm state and isolate work
 
-### 10. Stay within scope
+- Reconfirm the starting commit and working tree.
+- Preserve unrelated user changes.
+- Create or use `switch-to-photon`.
+- If the branch exists, inspect it; do not reset or overwrite it blindly.
+- Do not modify or merge the default branch unless the user separately requests that Git action.
+
+## 9. Execute parity-only replacement
+
+Implement only the approved plan.
 
 Allowed changes:
 
-- provider dependencies;
-- provider initialization and lifecycle;
-- inbound/outbound transport adapters;
+- source-provider dependencies and lifecycle;
+- inbound and outbound provider adapters;
 - provider-specific schemas and identifiers;
-- provider-specific environment configuration;
-- related tests, fixtures, mocks, setup, and migration documentation.
+- provider-specific configuration;
+- related tests, fixtures, setup documentation, and credential-name templates.
 
-Do not change:
+Required approach:
 
-- prompts or model behavior;
-- business rules;
-- database vendor;
-- unrelated schemas;
-- UI or product copy;
-- unrelated dependencies;
-- hosting architecture unless required by the approved target;
-- formatting or naming in untouched modules;
-- features unrelated to transport parity.
+- translate Photon events into the application's existing internal shape;
+- preserve prompts, LLM behavior, business logic, UI, and product copy;
+- preserve language and hosting model unless the approved target explicitly changes them;
+- preserve retry, ordering, deduplication, idempotency, attachment, status, and error semantics;
+- retain compatibility fields or aliases needed for existing stored records;
+- never expose real secrets.
 
-### 11. Verify and report
+Prohibited changes:
 
-Read [`verification.md`](./verification.md). Review every changed file against the approved plan. Any newly discovered required work must be reported as a plan change instead of silently expanding scope.
+- new Photon capabilities;
+- unrelated refactors or broad cleanup;
+- database-vendor changes;
+- unrelated schema or dependency changes;
+- silent hosting changes;
+- removal of non-iMessage channels outside approved scope.
+
+## 10. Enforce scope changes
+
+When necessary work is discovered outside the approved plan, stop and produce:
+
+```text
+Switch to Photon — Plan Revision Required
+```
+
+Explain:
+
+- the new requirement;
+- why it is necessary;
+- files that must be added to scope;
+- whether product behavior changes;
+- updated risks;
+- updated verification.
+
+Do not continue until the user's latest message again contains `APPROVE SWITCH TO PHOTON PLAN`. Original approval is not unlimited permission.
+
+## 11. Verify
+
+Read [`verification.md`](./verification.md). Compare the implementation to the approved plan, run available repository checks, prove each approved capability, search for active source-provider remnants, and review the complete diff before reporting status.
