@@ -1,75 +1,61 @@
 # Verification
 
-The migration is complete only when it matches the approved plan, preserves behavior, and leaves the repository healthy.
+Do not claim completion until the implementation matches the approved plan, preserves every approved capability, and reports every blocked or unverified item.
 
-## 1. Confirm scope against the approved plan
+## 1. Scope verification
 
-Before testing, compare the actual changed files and behaviors to the approved plan.
+Compare every changed file and behavior against the approved plan.
 
-- No unplanned feature or refactor may remain.
-- Any necessary scope expansion requires a revised plan and user approval.
-- Do not use newly discovered work as permission to silently broaden the migration.
+- No unplanned change may remain.
+- No new Photon feature may remain.
+- No unrelated refactor may remain.
+- Any required expansion must use `Switch to Photon — Plan Revision Required` and receive `APPROVE SWITCH TO PHOTON PLAN` again.
 
-## 2. Run the repository's own checks
+## 2. Repository checks
 
-Discover commands from the repository rather than inventing them. Run applicable existing commands such as:
+Run the repository's own available commands, including as applicable:
 
-- unit and integration tests;
+- unit tests;
+- integration tests;
 - typecheck;
 - lint;
 - production build;
-- provider-specific tests;
-- generated-client or schema checks;
-- deployment/config validation.
+- schema validation;
+- generated-client validation;
+- deployment configuration validation.
 
-Do not weaken or delete failing tests to make the migration pass.
+Discover commands from repository configuration. Do not invent commands, delete tests, weaken assertions, or bypass failures to obtain a passing result.
 
-## 3. Verify every used capability
+## 3. Capability parity
 
-Build a result table:
+Produce:
 
-| Capability used before | Photon path implemented | Test/evidence | Result |
+| Capability used before | Photon implementation | Evidence | Result |
 |---|---|---|---|
 
-When applicable, verify:
+Verify every capability approved in the plan, including applicable inbound and outbound routing, groups, line selection, attachments, replies, reactions, typing, read state, delivery states, retries, idempotency, deduplication, ordering, webhook authentication and acknowledgement, lifecycle, shutdown, fallback channels, and persisted-ID compatibility.
 
-- inbound Photon events reach the same application handler;
-- application responses reach the Photon outbound path;
-- sender, line, user, chat, and conversation routing remain correct;
-- message/event deduplication still prevents repeated processing;
-- send idempotency and retries do not duplicate messages;
-- attachments preserve accepted types, limits, ordering, captions, and failure behavior;
-- replies, reactions, effects, typing, read state, groups, edits, or unsends retain the used semantics;
-- lifecycle statuses and failure handling preserve application state transitions;
-- webhook signatures/authentication, acknowledgements, and retries remain enforced;
-- initialization, reconnect, and graceful shutdown work;
-- SMS/RCS or other channels remain supported when they were in approved scope;
-- existing persisted identifiers remain readable or have a documented compatibility path.
+When credentials are unavailable, use existing mocks or approved fixtures and report the exact live smoke test that remains. Never fabricate a successful live test.
 
-When live Photon credentials are unavailable, use mocks or fixtures and identify the remaining live smoke test. Never fabricate a successful live test.
+## 4. Provider removal
 
-## 4. Verify source-provider removal
+Search active runtime code and configuration for:
 
-Search active code and configuration for:
+- old imports;
+- old packages;
+- old API hosts;
+- old endpoints;
+- old authentication headers;
+- old environment variables;
+- old webhook routes;
+- old initialization;
+- old shutdown behavior;
+- old generated clients;
+- old provider deployment services.
 
-- old imports and packages;
-- API hosts and endpoint paths;
-- authentication headers;
-- required environment variables;
-- webhook routes and subscriptions;
-- provider initialization and shutdown;
-- active mocks, fixtures, or generated clients;
-- provider-only deployment services.
+Historical migration notes may retain the provider name. Compatibility fields may remain only when they were approved and are still required to read existing records. Active runtime code must not unexpectedly depend on the old provider after a full replacement.
 
-Historical changelogs and migration notes may mention the provider. Active runtime code must not depend on it after a complete replacement.
-
-Exceptions must be explicit, such as:
-
-- compatibility fields retained for existing records;
-- a non-messaging source-provider feature excluded from the approved migration;
-- a blocked capability still temporarily routed through the old provider.
-
-## 5. Review the complete diff
+## 5. Complete diff review
 
 Review from the recorded starting commit:
 
@@ -80,47 +66,65 @@ git diff <starting-commit>...HEAD
 
 For every changed file, answer:
 
-- Was this listed in or required by the approved plan?
-- Is it required for provider parity?
+- Was it approved?
+- Is it required for parity?
 - Did it change product behavior?
-- Did it add a feature the old integration did not use?
+- Did it add a new feature?
 - Did it expose a secret?
 - Did it perform an unrelated refactor?
 
-Remove unnecessary changes before finishing.
+Remove unnecessary changes.
 
-## 6. Final response
+## 6. Completion rules
 
-Use this format:
+Do not claim completion when:
+
+- a required capability is blocked;
+- provider detection remains low-confidence without explicit risk acceptance;
+- the diff exceeds the approved plan;
+- an essential test failed;
+- a test could not run and was not reported;
+- live verification is required but unavailable;
+- the old provider remains active unexpectedly.
+
+## 7. Final report
 
 ```text
-Switch to Photon
+Switch to Photon — Verification Report
 
 Branch: switch-to-photon
 Starting commit: <sha>
-Detected: <provider, exact SDK/API generation, integration style, confidence>
-Photon target: <surface and one-sentence reason>
+Detected source: <provider, exact SDK/API generation, integration style, confidence>
+Photon target: <product and reason>
 
-Migrated:
-- <only approved capabilities that existed before>
+Approved capabilities migrated:
+- <capability>
 
-Intentionally not added:
-- <unused Photon capabilities, or "No additional features added">
+Intentionally excluded:
+- <unused capability or no additional features added>
 
-Verification:
-- <tests/typecheck/lint/build and results>
-- <capability parity results>
-- <source-provider removal check>
-- <diff review>
+Capability parity:
+| Capability used before | Photon implementation | Evidence | Result |
+|---|---|---|---|
+
+Repository checks:
+- <command/check and result>
+
+Provider removal:
+- <search and result>
+
+Complete diff review:
+- <approved-file and behavior result>
 
 Manual setup:
-- <credential/dashboard/line/webhook steps without secret values>
+- <credential/dashboard step without secret values>
 
 Compatibility retained:
-- <old IDs/fields or "None">
+- <old IDs/fields or none>
 
-Unverified or blocked:
-- <exact remaining item, or "None">
+Blocked or unverified:
+- <exact item or none>
+
+Completion status:
+- <complete | incomplete because ...>
 ```
-
-Do not say the migration is complete when a used capability is blocked, the actual diff exceeds the approved plan, or an essential check could not run.
