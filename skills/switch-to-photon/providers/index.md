@@ -12,6 +12,22 @@ Use only official agent-readable documentation linked by this skill:
 
 Do not directly link to normal documentation homepages, ordinary HTML pages, dashboards, marketing pages, API explorers, Swagger pages, GitHub repository roots, `.yaml` or `.json` OpenAPI files, unofficial mirrors, or blog posts.
 
+This restriction applies to source-provider detection.
+
+Photon target verification follows [`../photon-evidence.md`](../photon-evidence.md), which permits:
+
+- exported public Photon package types;
+- versioned public API documentation;
+- hosted-service API and event contracts;
+- official Photon Agent Skills;
+- official Photon implementation source when public evidence is incomplete or conflicting;
+- official tests when they exist and are relevant;
+- official product repositories.
+
+Do not apply the source-provider documentation restriction in a way that prevents inspection of current official Photon public-contract or implementation evidence.
+
+Do not treat undocumented internal implementation as a supported public Photon capability.
+
 When a provider does not publish an approved agent-readable source:
 
 - rely on the repository's lockfiles, imports, API calls, payloads, fixtures, and tests;
@@ -20,6 +36,26 @@ When a provider does not publish an approved agent-readable source:
 - treat low-confidence provider or version detection as a planning blocker.
 
 Following a link from an approved `llms.txt` is allowed only when the linked resource is itself an official agent-readable source permitted by this policy. Do not substitute an ordinary page.
+
+## Documentation retrieval policy
+
+Documentation retrieval status must be one of:
+
+- retrieved;
+- published but inaccessible from the current environment;
+- confirmed missing;
+- retrieved but insufficient.
+
+A sandbox, DNS, redirect, timeout, or tool failure must not be described as a genuine HTTP 404 or as proof that documentation does not exist.
+
+When retrieval fails:
+
+1. try the registered `llms.txt`;
+2. try the registered `llms-full.txt`;
+3. retry using another available fetch mechanism;
+4. record the exact failure;
+5. continue using repository evidence;
+6. do not invent documentation contents.
 
 ## Provider routing
 
