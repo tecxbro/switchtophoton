@@ -1,16 +1,16 @@
 ---
 name: switch-to-photon
 description: >
-  Switch to Photon by inspecting and planning a parity-only replacement of an existing iMessage or messaging
-  provider. Use for Switch to Photon, migrate to Photon, replace Sendblue, replace Linq, BlueBubbles migration,
-  Blooio migration, LoopMessage migration, Texting Blue migration, iMessage-provider migration,
-  messaging-provider replacement, provider parity migration, Photon Spectrum migration, Photon Webhook migration,
-  Photon HTTP Proxy migration, Advanced iMessage Kit migration, self-hosted iMessage Kit migration, Photon MCP
-  migration, or Vercel Chat SDK chat-adapter-imessage migration. Detect the exact source SDK version, REST API
-  generation, webhook generation, mixed generation, active capabilities, and architecture before selecting Photon.
-  Remain read-only until a complete plan is shown and the user's latest message explicitly contains the exact
-  approval phrase. Execute only approved behavior, stop for scope changes, protect secrets, and verify the final
-  implementation against the approved plan.
+  Switch to Photon by inspecting and planning a parity-only replacement of an existing iMessage, SMS API,
+  messaging SDK, or messaging provider integration. Use for Switch to Photon, migrate to Photon, replace Sendblue,
+  replace Linq, BlueBubbles migration, Blooio migration, LoopMessage migration, Texting Blue migration,
+  iMessage-provider migration, messaging-provider replacement, messaging SDK migration, SMS API migration,
+  provider parity migration, Photon Spectrum migration, Photon Webhook migration, Photon HTTP Proxy migration,
+  Advanced iMessage Kit migration, self-hosted iMessage Kit migration, Photon MCP migration, or Vercel Chat SDK
+  chat-adapter-imessage migration. Detect the exact source SDK version, REST API generation, webhook generation,
+  mixed generation, active capabilities, and architecture before selecting Photon. Remain read-only until a complete
+  plan is shown and the user's latest message explicitly contains the exact approval phrase. Execute only approved
+  behavior, stop for scope changes, protect secrets, and verify the final implementation against the approved plan.
 license: MIT
 metadata:
   author: tecxbro

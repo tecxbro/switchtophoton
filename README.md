@@ -1,5 +1,7 @@
 # Switch to Photon
 
+[![skills.sh](https://skills.sh/b/tecxbro/switchtophoton)](https://skills.sh/tecxbro/switchtophoton)
+
 Switch to Photon is a portable Agent Skill for existing coding agents such as Codex, Claude Code, Cursor, OpenCode, and GitHub Copilot. It is not a coding agent, SDK, CLI, MCP server, website, or hosted migration product.
 
 The skill inspects an existing messaging integration, identifies the source provider and its exact SDK or API generation, prepares a behavior-preserving migration plan, waits for explicit approval, replaces only the provider boundary, and verifies the completed migration against the approved plan.
@@ -17,6 +19,102 @@ Requirements:
 - Node.js and npm so `npx` is available.
 - A supported coding agent.
 - Access to the application repository being migrated.
+
+## Repository layout
+
+```text
+switchtophoton/
+├── README.md
+└── skills/
+    └── switch-to-photon/
+        ├── SKILL.md
+        ├── workflow.md
+        ├── plan-template.md
+        ├── photon-targets.md
+        ├── verification.md
+        └── providers/
+```
+
+The portable skill entrypoint is `skills/switch-to-photon/SKILL.md`. The supporting workflow, provider references, target-selection guidance, plan template, and verification rules are stored beside it so they are installed together.
+
+## Publish and discover on skills.sh
+
+There is no manual submission form for the directory used by `npx skills` and skills.sh. Public skills are hosted in GitHub repositories and become eligible for indexing after the Skills CLI discovers and installs them.
+
+### Verify CLI discovery
+
+List the skills detected in this repository:
+
+```bash
+npx skills add tecxbro/switchtophoton --list
+```
+
+The output should include:
+
+```text
+switch-to-photon
+```
+
+Test a clean Codex installation:
+
+```bash
+npx skills add tecxbro/switchtophoton \
+  --skill switch-to-photon \
+  --agent codex \
+  --yes
+```
+
+Test Cursor and Claude Code:
+
+```bash
+npx skills add tecxbro/switchtophoton \
+  --skill switch-to-photon \
+  --agent cursor \
+  --agent claude-code \
+  --yes
+```
+
+### Trigger skills.sh indexing
+
+Run a normal local installation with anonymous CLI telemetry enabled:
+
+```bash
+npx skills add tecxbro/switchtophoton \
+  --skill switch-to-photon \
+  --global \
+  --yes
+```
+
+Do not set either of these variables for the indexing installation:
+
+```bash
+DISABLE_TELEMETRY=1
+DO_NOT_TRACK=1
+```
+
+CI installations do not count toward directory telemetry because telemetry is disabled in CI. Indexing may not be immediate.
+
+The expected skill page is:
+
+```text
+https://skills.sh/tecxbro/switchtophoton/switch-to-photon
+```
+
+### Confirm search discovery
+
+```bash
+npx skills find switch-to-photon
+npx skills find photon migration
+```
+
+The skill metadata intentionally includes search terms such as Photon, iMessage, messaging-provider migration, Sendblue, Linq, Spectrum, SMS API, and messaging SDK.
+
+Directory documentation:
+
+- https://www.skills.sh/docs
+- https://www.skills.sh/docs/faq
+- https://www.skills.sh/docs/api
+- https://github.com/vercel-labs/skills
 
 ## Safety model
 
