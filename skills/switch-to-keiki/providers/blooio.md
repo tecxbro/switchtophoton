@@ -10,6 +10,7 @@ Use this file only after repository evidence indicates Blooio.
 - https://docs.blooio.com/llms.txt
 - https://docs.blooio.com/llms-full.txt
 - https://docs.blooio.com/openapi.v4.json — the provider's published v4 OpenAPI contract of record (permitted under the index policy's official-OpenAPI exception)
+- https://api.blooio.com/v4/openapi.json — the host-served v4 OpenAPI document cited by first-party integrations (e.g. `eve-channel-blooio`); when the two URLs disagree, prefer the host-served contract and record the discrepancy
 - Official per-page Markdown under `https://docs.blooio.com/**/*.md`
 
 Begin with the official `llms.txt`. Follow only relevant official agent-readable references that also satisfy the policy in [`index.md`](./index.md). Ordinary HTML documentation pages are not approved linked sources.

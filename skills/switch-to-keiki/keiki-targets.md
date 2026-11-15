@@ -107,6 +107,7 @@ These were checked against official docs and `openapi.json`. Do not re-derive pe
 - **No public delivery-status or read-receipt event API** — delivery is tracked internally and inspectable through the delivery ledger, not pushed as message events.
 - **No raw verbatim send endpoint** — see "Proactive and out-of-turn outbound" above.
 - **No conversation-history fetch, conversation-inspection, or lines-list API** for external apps — turns carry bounded per-conversation history only.
+- **No raw inbound-message polling API** — inbox mode (`/harness/inbox/next`) and relay mode (`/harness/turns/next`) claim *agent turns*, not raw messages: every claimed item spins agent semantics (and cost) per message. A source integration that polls a provider messages endpoint on a timer maps to per-message turns — a semantic and cost parity risk that must be stated, not silently absorbed.
 - **No mark-read / read-receipt send or read API** (WhatsApp read receipts are a channel capability, not an API surface).
 - **No contacts/address-book API** — only the per-sender identity webhook for auth/scopes.
 - **No mailbox, transcript, or call-history browsing API** — bounded per-turn history only.

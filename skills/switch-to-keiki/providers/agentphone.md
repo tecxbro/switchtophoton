@@ -23,7 +23,8 @@ Confirm combinations of:
 - unauthenticated `/v0/agent/sign-up` and `/v0/agent/verify` self-signup calls;
 - webhook headers `X-Webhook-Signature`, `X-Webhook-Timestamp`, `X-Webhook-ID`, `X-Webhook-Event`;
 - webhook-secret environment variables such as `AGENTPHONE_WEBHOOK_SECRET` and dedicated webhook receiver routes (`/webhook`, `/webhooks/agentphone`) — a webhook-ingress-only integration may have zero SDK/REST fingerprints; the route + secret + provider name is then the fingerprint set;
-- identifier prefixes `agt_`, `num_`, `msg_`, `conv_`, `ct_`, `call_`, `rcs_`, `grp_`, and `ext:` external IDs.
+- identifier prefixes `agt_`, `num_`, `msg_`, `conv_`, `ct_`, `call_`, `rcs_`, `grp_`, and `ext:` external IDs;
+- **provider-façade fingerprints** — when the repository *is* AgentPhone's own MCP server or API proxy rather than a consumer: `agentphone-mcp` package name, `server.json` MCP registry manifest, `/.well-known/mcp.json`, `mcp.agentphone.ai` host, MCP tool names (`send_message`, `make_call`, `buy_number`, `manage_contact`, `get_messages`, webhook CRUD, `get_usage`), JSON-RPC/stdio+Streamable-HTTP transports, OAuth proxy code, `sk_live_`/`sk_test_` key handling, and signed internal event-ingress routes (`/internal/events/*` with Standard-Webhooks `whsec_` HMAC verification).
 
 A name alone is insufficient. Confirm active calls, handlers, fixtures, or deployment configuration. Note: the channel (SMS/MMS/iMessage/WhatsApp/RCS/voice) is often undeterminable from a passive webhook receiver — record it as provisioning-time scope, not a detection failure.
 
@@ -49,7 +50,8 @@ Check active use of:
 - 10DLC registration, sub-accounts (`X-Sub-Account-Id`), and STOP/HELP compliance state;
 - number rental lifecycle, `expiresAt` release, and `number.released` events;
 - WhatsApp Embedded Signup connection state and template usage;
-- history polling, conversation state, and contact capability lookups.
+- history polling, conversation state, and contact capability lookups;
+- **façade/MCP-server capabilities** (when the repo is AgentPhone's own MCP/API product): the full MCP tool surface as individually named tools, JSON-RPC method/error semantics, bearer-token formats issued or verified, `server.json`/`.well-known/mcp.json` manifest contract, OAuth flows, pass-through REST proxy routes (`/v1/*`), signed internal event ingress (`message-received` wake events), outbound webhook-subscription CRUD, usage/billing endpoints, number rental/provisioning, voice-call control, and contacts CRM — each is a capability row, not just messaging flow.
 
 Only proven capabilities belong in the plan.
 
@@ -62,4 +64,5 @@ Only proven capabilities belong in the plan.
 - Sub-account scoping changes resource visibility; IDs are not portable across scopes.
 - RCS is concierge-onboarded and deliberately absent from OpenAPI/SDK types; raw HTTP is required.
 - Apple Messages for Business availability is early-access and unverified in the public docs.
+- **When the repository is AgentPhone's own product** (its MCP server, SDK, or API proxy), migration inverts the repo's purpose: Keiki MCP exposes org operations rather than messaging primitives, so MCP↔MCP is a role inversion — the honest verdict is infeasible-as-specified/do-not-migrate unless the user redefines the migration object.
 - Current AgentPhone features not used by the repository are out of scope.

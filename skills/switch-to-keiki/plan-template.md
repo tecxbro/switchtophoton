@@ -7,7 +7,9 @@ Switch to Keiki — Migration Plan
 
 Plan verdict: <executable | executable-with-approved-changes | infeasible-as-specified | blocked-on-evidence>
 (For infeasible-as-specified, replace the full plan below with the short infeasibility report:
-disqualifying capability, what Keiki would need, and the options — do not request approval.)
+disqualifying capability, what Keiki would need, and the options — do not request approval.
+Repository state may be abbreviated to root/branch/commit; execution-access fields are n/a
+when no executable path exists.)
 
 Repository state
 - Repository root: <path>
@@ -22,11 +24,11 @@ Execution access
 
 - Repository permissions:
   - read: <yes/no>
-  - create branch: <yes/no>
-  - push: <yes/no>
-  - open pull request: <yes/no>
+  - create branch: <yes/no/unknown>
+  - push: <yes/no/unknown>
+  - open pull request: <yes/no/unknown>
 - Writable repository:
-  - <original repository, existing fork, new fork required, or unavailable>
+  - <original repository, existing fork, new fork required, unavailable, or unknown/unverified — Phase-1 read-only cannot always prove write access; Phase 2 must reconfirm>
 - Execution branch:
   - <branch>
 - Pull-request destination:
@@ -47,10 +49,11 @@ Never override an explicit user-selected branch with the default.
 
 Source integration
 - Provider: <provider>
-- Repo shape: <consumer application | provider library/adapter | provider façade/MCP server/proxy | provider SDK | provisioning tooling>
+- Repo shape: <consumer application | provider library/adapter | provider façade/MCP server/proxy | provider SDK | provisioning tooling | passive sink/webhook recorder/test harness | provider's own plugin fork | provider's own product | provider-authored host-platform plugin/template | deployment template/wrapper-image>
 - Public API surface to preserve (library/adapter/façade repos): <exported symbols, route/tool wire contract, identifier formats, rename-vs-rewrite-vs-new-package decision, breaking-change/versioning record — or n/a>
-- Provider-boundary scope: <which providers/channels are being replaced; disposition of the rest>
-- Detection result: <exact SDK version | known REST API generation | known webhook generation | raw REST unversioned | webhook-ingress-only | generation-irrelevant | mixed generations | mixed surfaces | unknown generation>
+- Provider-boundary scope: <which providers/channels are being replaced; disposition of the rest; in/out-of-scope decision for optional or env-gated integrations>
+- Substrate check: <is the source provider itself a Keiki line provider, or does the host platform have an official Keiki adapter (@onkeiki/*)? adapter-retirement evaluated: yes/no + why>
+- Detection result: <exact SDK version | known REST API generation | known webhook generation | raw REST unversioned | raw REST against known generation | raw REST mixed endpoint generations | webhook-ingress-only | generation-irrelevant | mixed generations | mixed surfaces | unknown generation>
 - Exact SDK/API generation: <specific result; per-surface breakdown when mixed>
 - Integration style: <REST, webhook, SDK stream, WebSocket, Socket.IO, agent loop, adapter, local bridge, MCP, mixed>
 - Detection confidence: <High, Medium, Low>
@@ -198,6 +201,8 @@ Behavioral differences requiring target-side compensation
 
 Closed-value preservation
 
+Mark a row `n/a — transport has no such concept` when the source integration genuinely lacks that value class (e.g. a text-only transport has no reactions/effects/services); do not invent rows to fill the template.
+
 - Reactions:
   - <every actively reachable closed source value → exact Keiki value>
 - Effects:
@@ -236,6 +241,7 @@ Routing behavior
 
 Expected code changes
 - <every file or module expected to change and why>
+- When the provider boundary is interleaved with agent-loop or application code (single files mixing provider calls with business logic), map the boundary at module/function level and mark the file list as an estimate with the interleaving risk stated — do not pretend file-level precision the inspection cannot support.
 
 Dependencies and configuration
 - Packages to remove:
@@ -293,6 +299,8 @@ Inspect and include only fields supported by active repository evidence.
   - <details, none, or not applicable>
 - Cutover procedure:
   - <details>
+- Provider-side ingress to retire or repoint:
+  - <dashboard-managed webhook destinations, registered callbacks, polling loops, socket subscriptions, or provider-side scheduled sends that must be disabled/repointed at cutover — plus how double-delivery is prevented while both sides are live; or none>
 - Blockers:
   - <details or none>
 

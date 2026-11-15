@@ -2,6 +2,8 @@
 
 Use this file only after repository evidence indicates a BlueBubbles server integration.
 
+**Self-detection guard:** this file assumes a *consumer* of a BlueBubbles server. When the repository IS the provider's own codebase (`BlueBubblesApp/bluebubbles-server`, `@bluebubbles/server`, its REST/Socket.IO/webhook route sources), consumer fingerprints (`/api/v1`, server auth, webhook event names) match the provider's own source — classify repo shape as "provider's own product" and verdict infeasible-as-specified/do-not-migrate; the wire contract documented below is then reference material for Keiki-side gap reporting, not a migration target.
+
 ## Approved official documentation
 
 - https://docs.bluebubbles.app/server/llms.txt

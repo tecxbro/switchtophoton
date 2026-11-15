@@ -1,0 +1,39 @@
+send_message:
+  name: Send Message
+  description: Sends a Message (iMessage / RCS / MMS / SMS) via BlueBubbles, with optional image/file attachment.
+  fields:
+    addresses:
+      name: Address(es)
+      description: The address(es) to send to. Multiple addresses can be separated by commas or semicolons. Provide either addresses or chat_guid.
+      required: false
+      example: "+15558675309, a.contact@me.com"
+      selector:
+        text:
+    chat_guid:
+      name: Chat GUID
+      description: The GUID of an existing BlueBubbles chat. Provide either chat_guid or addresses.
+      required: false
+      example: "any;+;bd802086b5494bb6a197b0c10625f9e9"
+      selector:
+        text:
+    message:
+      name: Message
+      description: The message to send. Optional when attachment or media_url is provided.
+      required: false
+      example: "Hello!"
+      selector:
+        text:
+    attachment:
+      name: Attachment
+      description: Absolute path to a local file to attach (must be under allowlist_external_dirs).
+      required: false
+      example: "/config/www/snapshot.jpg"
+      selector:
+        text:
+    media_url:
+      name: Media URL
+      description: URL of an image/file to download and attach (used when attachment is not set).
+      required: false
+      example: "https://example.com/image.jpg"
+      selector:
+        text:

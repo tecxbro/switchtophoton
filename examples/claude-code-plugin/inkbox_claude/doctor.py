@@ -1,0 +1,180 @@
+"""Readiness checks for the bridge: config, SDKs, CLI, and identity reachability."""
+
+from __future__ import annotations
+
+import os
+import shutil
+from typing import List, Tuple
+
+try:
+    from .config import VoiceStack, inkbox_client_kwargs, read_config
+except ImportError:  # pragma: no cover - direct local import/test fallback
+    from config import VoiceStack, inkbox_client_kwargs, read_config
+
+
+def run_doctor() -> List[Tuple[str, bool, str]]:
+    """Run every readiness check.
+
+    Returns:
+        List[Tuple[str, bool, str]]: (check name, passed, detail) rows.
+    """
+    # Read the same .env the bridge does before judging anything missing —
+    # otherwise doctor reports "missing" for credentials that are on disk and
+    # working, purely because this process did not inherit them.
+    try:
+        from .daemon import _maybe_load_env_file
+    except ImportError:  # pragma: no cover - direct local import/test fallback
+        from daemon import _maybe_load_env_file
+    _maybe_load_env_file()
+
+    cfg = read_config()
+    checks: List[Tuple[str, bool, str]] = []
+
+    checks.append(("INKBOX_API_KEY", bool(cfg.api_key), "set" if cfg.api_key else "missing"))
+    checks.append(("INKBOX_IDENTITY", bool(cfg.identity), cfg.identity or "missing"))
+    checks.append((
+        "INKBOX_SIGNING_KEY",
+        bool(cfg.signing_key) or not cfg.require_signature,
+        "set" if cfg.signing_key else "missing (required for signed inbound webhooks)",
+    ))
+    checks.append((
+        "phone voice stack",
+        not bool(cfg.voice_stack_invalid_value),
+        cfg.voice_stack_invalid_value or cfg.voice_stack.value,
+    ))
+    checks.append((
+        "voicemail detection",
+        cfg.voicemail_detection in {"enabled", "disabled"},
+        cfg.voicemail_detection,
+    ))
+    if cfg.voice_stack is VoiceStack.OPENAI_REALTIME:
+        checks.append((
+            "OpenAI Realtime key",
+            bool(cfg.realtime.api_key),
+            "set" if cfg.realtime.api_key else "missing",
+        ))
+
+    try:
+        import inkbox  # noqa: F401
+        checks.append(("inkbox SDK", True, "installed"))
+    except ImportError:
+        checks.append(("inkbox SDK", False, "pip install 'inkbox>=0.7.11,<1.0.0'"))
+
+    try:
+        import claude_agent_sdk  # noqa: F401
+        checks.append(("claude-agent-sdk", True, "installed"))
+    except ImportError:
+        checks.append(("claude-agent-sdk", False, "pip install claude-agent-sdk"))
+
+    try:
+        import aiohttp  # noqa: F401
+        checks.append(("aiohttp", True, "installed"))
+    except ImportError:
+        checks.append(("aiohttp", False, "pip install 'aiohttp>=3.9'"))
+
+    claude_bin = shutil.which("claude")
+    checks.append((
+        "claude CLI",
+        bool(claude_bin),
+        claude_bin or "not on PATH — install Claude Code first",
+    ))
+
+    from .runtime import local_readiness
+    host_ready, detail = local_readiness()
+    checks.append(("Claude readiness", host_ready, detail))
+    checks.append(("Vault unlock key", True,
+                   "configured locally" if os.getenv("INKBOX_CLAUDE_VAULT_KEY") else "locked (optional); set INKBOX_CLAUDE_VAULT_KEY locally"))
+    checks.append(("Slack receiver", bool(cfg.signing_key) if cfg.slack_enabled else True,
+                   "enabled; requires signed Inkbox events" if cfg.slack_enabled else "disabled"))
+    checks.append(("response policy", True, f"groups={cfg.group_reply_mode}; Companion={cfg.companion_response_mode}"))
+    project_dir = cfg.project_dir
+    checks.append((
+        "project dir",
+        bool(project_dir) and os.path.isdir(project_dir),
+        project_dir or "unset (defaults to cwd)",
+    ))
+
+    if cfg.api_key and cfg.identity:
+        try:
+            from inkbox import Inkbox
+
+            identity = Inkbox(**inkbox_client_kwargs(cfg.api_key, cfg.base_url)).get_identity(cfg.identity)
+            mailbox = getattr(identity, "mailbox", None)
+            phone = getattr(identity, "phone_number", None)
+            detail = ", ".join(filter(None, [
+                getattr(mailbox, "email_address", None),
+                getattr(phone, "number", None),
+                "imessage" if getattr(identity, "imessage_enabled", False) else None,
+                "whatsapp" if getattr(identity, "whatsapp_enabled", False) else None,
+            ])) or "no channels provisioned"
+            checks.append(("identity reachable", True, detail))
+            if cfg.imessage_threaded_replies:
+                from .config import imessage_threading_capability
+                supported, hint = imessage_threading_capability(identity)
+                checks.append(("native iMessage", supported, hint + "; backend capability requires a source-bound live check"))
+            if cfg.slack_enabled:
+                from .slack_companion import require_sdk_support
+                try:
+                    require_sdk_support()
+                    checks.append(("Slack Companion SDK", True, "supported; current activation is checked before turns and sends"))
+                except ValueError:
+                    checks.append(("Slack Companion SDK", False, "upgrade inkbox to >=0.7.14 for Slack Companion"))
+            expected_action = (
+                "hosted_agent"
+                if cfg.voice_stack is VoiceStack.INKBOX_VOICE_AI
+                else "auto_accept"
+            )
+            try:
+                incoming = identity.get_incoming_call_action()
+                actual_action = str(
+                    getattr(
+                        getattr(incoming, "incoming_call_action", ""),
+                        "value",
+                        getattr(incoming, "incoming_call_action", ""),
+                    )
+                )
+            except Exception as exc:
+                checks.append(("incoming call action", False, str(exc)))
+            else:
+                checks.append((
+                    "incoming call action",
+                    actual_action == expected_action,
+                    f"{actual_action or 'unset'} (expected {expected_action})",
+                ))
+            if cfg.voice_stack is VoiceStack.INKBOX_VOICE_AI:
+                try:
+                    hosted = identity.get_hosted_agent_config()
+                    remote = str(
+                        getattr(
+                            getattr(hosted, "authority_mode", ""),
+                            "value",
+                            getattr(hosted, "authority_mode", ""),
+                        )
+                        or "contact_scoped"
+                    )
+                    checks.append((
+                        "Voice AI authority",
+                        remote == cfg.voice_ai_authority_mode,
+                        remote,
+                    ))
+                except Exception as exc:
+                    checks.append(("Voice AI authority", False, str(exc)))
+        except Exception as exc:
+            checks.append(("identity reachable", False, str(exc)))
+
+    return checks
+
+
+def print_doctor() -> int:
+    """Print check results.
+
+    Returns:
+        int: Process exit code — 0 when everything passed, 1 otherwise.
+    """
+    rows = run_doctor()
+    failed = 0
+    for name, ok, detail in rows:
+        mark = "✓" if ok else "✗"
+        print(f" {mark} {name:<20} {detail}")
+        failed += 0 if ok else 1
+    return 0 if failed == 0 else 1

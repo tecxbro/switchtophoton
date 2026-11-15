@@ -1,0 +1,26 @@
+# Checks photon.jsonc, the file that tells Photon what this template needs,
+# with @photon-ai/template, the reader Photon itself uses. Each problem shows
+# on its line of the pull request. It runs on every pull request, so it can
+# be a required check.
+name: photon.jsonc
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    paths:
+      - photon.jsonc
+      - .github/workflows/photon-template.yml
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - run: npx --yes @photon-ai/template@0 check photon.jsonc

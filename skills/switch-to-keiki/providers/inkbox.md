@@ -42,6 +42,7 @@ Check active use of:
 - groups (dedicated-line only, async creation, `include_groups` listing), participants, and detach/reassign semantics;
 - reactions — outbound tapbacks plus `eyes`, `part_index` targeting, replace-on-resend, `DELETE /reactions/{id}` removal; inbound custom emoji arrive receive-only;
 - SMS/MMS texts, voice calls, WhatsApp, email, Slack, A2A, vault, tunnels, contacts, hosted agents, and 10DLC compliance only when active code proves use;
+- SDK sub-surfaces observed in first-party plugins: `inkbox.companion` (Slack companion channel), `client.vault` (secrets + TOTP), `client.contacts` CRUD, `identity.a2a_client()` outbound A2A calls, `inkbox.whatsapp`/`inkbox.identities`/`inkbox.whoami` helpers, tunnel client (`inkbox.tunnels.client`), and agent-facing MCP tool builders (`build_*_mcp_server` exposing `inkbox_*` tools) — inventory each as its own capability row;
 - webhook subscriptions (`agent_identity_id` selector, `event_types`, `auth_token`), signature verification, `evt_…` deduplication, replay, and the 60-subscription cap;
 - silent SMS/RCS downgrade (`service`, `was_downgraded`) and `check-messaging-capability`;
 - delivery lifecycle webhooks (`imessage.sent/delivered/delivery_failed`, `text.*`, `message.*`, `whatsapp.*`) and per-recipient status fields.

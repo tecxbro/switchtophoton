@@ -17,7 +17,8 @@ Confirm combinations of:
 - authentication headers such as `sb-api-key-id`, `sb-api-secret-key`, or signing-secret headers;
 - webhook verification model: Sendblue webhooks use a **static shared-secret header** (`sb-signing-secret` compared against the configured secret), not an HMAC signature — verify which model the app implements;
 - environment-variable names containing `SENDBLUE`;
-- endpoint patterns including `/api/send-message`, `/api/send-group-message`, `/api/send-carousel`, `/api/create-group`, `/api/evaluate-service`, `/api/account/webhooks`, `/api/v2/messages`, status, webhook, typing, reaction, and read paths;
+- endpoint patterns including `/api/send-message`, `/api/send-group-message`, `/api/send-carousel`, `/api/create-group`, `/api/evaluate-service`, `/api/account/webhooks`, `/api/v2/messages`, `/api/v2/contacts`, status, webhook, typing, reaction, and read paths;
+- polling-integration fingerprints: `GET /api/v2/messages` with `is_outbound=false`, `created_at_gte`, `order_by=createdAt`, `limit` query params (sandbox accounts may lack webhook support entirely — a poll loop is then the inbound transport, a distinct architecture from webhook ingress);
 - older resource patterns such as `/accounts/messages`;
 - webhook fields such as `message_handle`, `from_number`, `to_number`, `sendblue_number`, `media_url`, `is_outbound`, `service`, `group_id`, `participants`, `send_style`, or `was_downgraded`;
 - environment-variable names containing `SENDBLUE`, including `SENDBLUE_API_KEY`, `SENDBLUE_API_SECRET`, `SENDBLUE_FROM_NUMBER`, `SENDBLUE_WEBHOOK_SECRET`, `SENDBLUE_STATUS_CALLBACK_URL`, and Stainless-style `SENDBLUE_API_API_KEY`/`SENDBLUE_API_API_SECRET`.

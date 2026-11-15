@@ -1,0 +1,70 @@
+{
+  "name": "agentphone-mcp",
+  "version": "0.10.0",
+  "mcpName": "io.github.AgentPhone-AI/agentphone",
+  "description": "MCP server for AgentPhone — give AI agents phone numbers, SMS, and voice calls",
+  "type": "module",
+  "bin": {
+    "agentphone-mcp": "dist/index.js"
+  },
+  "main": "./dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "check:release": "node scripts/check-release-alignment.mjs",
+    "check:contract": "node scripts/check-openapi-contract.mjs",
+    "smoke:pack": "node scripts/smoke-pack.mjs",
+    "canary": "node scripts/canary.mjs",
+    "prepublishOnly": "npm run build && npm run check:release && npm run smoke:pack"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "agentphone",
+    "telephony",
+    "ai",
+    "voice",
+    "sms",
+    "phone",
+    "cursor",
+    "claude"
+  ],
+  "author": "AgentPhone <founders@agentphone.ai> (https://agentphone.ai)",
+  "license": "MIT",
+  "homepage": "https://github.com/AgentPhone-AI/agentphone-mcp",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AgentPhone-AI/agentphone-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AgentPhone-AI/agentphone-mcp/issues"
+  },
+  "engines": {
+    "node": "^20.19.0 || >=22.12.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "@wakeshift/sdk": "^0.11.1",
+    "hono": "4.12.34",
+    "mcp-use": "1.34.8",
+    "zod": "^4.6.6"
+  },
+  "overrides": {
+    "@hono/node-server": "1.19.15",
+    "esbuild": "0.28.1",
+    "hono": "4.12.34",
+    "posthog-js": "1.379.1",
+    "@modelcontextprotocol/sdk": "^1.32.0",
+    "zod": "^4.6.6"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.12",
+    "typescript": "^5.7.0"
+  }
+}

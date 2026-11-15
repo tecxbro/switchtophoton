@@ -93,7 +93,7 @@ These rules are mandatory:
 24. Do not claim completion while required behavior is blocked or unverified.
 25. When the user names the source provider, use it as the detection hypothesis and confirm or correct it with repository evidence. Do not ignore a user-named provider, and do not require a registered provider file to proceed.
 26. Flag every Keiki capability that is documented but not currently available — plan-gated, waitlist, early-access, dashboard-only, entitlement-gated, add-on-required, or region-limited — in the plan instead of silently planning against it or silently substituting another surface.
-27. Classify the repository's shape before inventorying capabilities — consumer app, provider library/adapter, provider façade/MCP server/proxy, provider SDK, or provisioning tooling — and define the migration object accordingly. When several messaging providers or adjacent SaaS vendors coexist, scope the provider boundary explicitly and use the split-provider decision record when the correct answer retains the source provider for some capabilities.
+27. Classify the repository's shape before inventorying capabilities — consumer app (including optional/env-gated integrations), provider library/adapter, provider façade/MCP server/proxy, provider SDK, provisioning tooling, passive sink/webhook recorder/test harness, provider's own plugin fork, provider's own product, provider-authored host-platform plugin/template, or deployment template/wrapper-image — and define the migration object accordingly. When several messaging providers or adjacent SaaS vendors coexist, scope the provider boundary explicitly and use the split-provider decision record when the correct answer retains the source provider for some capabilities.
 28. Assign a plan verdict before writing the plan: executable, executable-with-approved-changes, infeasible-as-specified, or blocked-on-evidence. An infeasible verdict produces a short report naming the disqualifying capability and the options — never a wall of unresolved rows and never the approval phrase.
 29. Run the fast-reject check before deep capability mapping: a core flow with no Keiki surface (cold outbound sends, provider voice APIs, contacts CRM, history browsing) makes the plan infeasible-as-specified; report it early.
 30. Report every unmapped capability as a Keiki-side gap — name the missing surface, the contract shape the source provider offers, and which integrations need it — precisely enough for the user to pass to the Keiki team or as an instruction to the Keiki agent itself. Keiki gaps are upstream feature requests, not just migration blockers.
@@ -103,7 +103,8 @@ These rules are mandatory:
 ```text
 Inspect repository
 → establish repository state and repo shape (consumer app / provider library /
-  façade-MCP-proxy / SDK / provisioning tool)
+  façade-MCP-proxy / SDK / provisioning tool / passive sink / provider's own
+  product / host-platform plugin-template / wrapper-image)
 → scope provider boundary (single provider, multi-provider, adjacent vendors)
 → detect source provider
 → detect exact source version or API generation (per surface when mixed)

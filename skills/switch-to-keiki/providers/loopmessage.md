@@ -5,7 +5,7 @@ Use this file only after repository evidence indicates LoopMessage.
 ## Approved official documentation
 
 - https://loopmessage.com/llms.txt
-- https://loopmessage.com/apidocs/ (published API reference linked from the official index)
+- https://loopmessage.com/apidocs/ — registered as the published API reference, but it may serve ordinary HTML rather than agent-readable content; verify before relying on it and treat `llms.txt` as canonical when it does not satisfy the index policy.
 
 Begin with the official `llms.txt`. Follow only relevant official agent-readable references that also satisfy the policy in [`index.md`](./index.md). Ordinary helpdesk, pricing, roadmap, and HTML documentation pages are not approved linked sources. `docs.loopmessage.com` publishes next-generation product docs but does not currently serve `llms.txt`.
 
@@ -19,7 +19,7 @@ Confirm combinations of:
 - LoopMessage credential and environment-variable names;
 - sender names, sender IDs, pools, and aliases;
 - webhook or callback configuration with `webhook_url` and `webhook_header`;
-- webhook authentication variants seen in the wild: HMAC `loop-signature`/`x-loop-signature` headers, Bearer `Authorization`, or unsigned — implementations disagree; fingerprint the actual verification code, not the docs;
+- webhook authentication variants seen in the wild: HMAC `loop-signature`/`x-loop-signature` headers, Bearer `Authorization`, a `?secret=` query-param variant used by some SDK paths, or unsigned — implementations disagree; fingerprint the actual verification code, not the docs;
 - auth-header variants: `Authorization: <authKey>` + `Loop-Secret-Key`, plus an `Auth-Secret-Key` variant used by some SDK paths;
 - consent, sign-up, deep-link, or inbound-first eligibility flows;
 - endpoints such as `/api/v1/message/send/`, `/api/v1/message/show-typing/`, `/api/v1/message/edit/{id}/`, `/api/v1/message/unsend/{id}/`, `/api/v1/organizations/*`, `/api/v1/sender/plans/`;
@@ -36,7 +36,7 @@ LoopMessage shipped a next-generation API (public beta December 2025; users migr
 
 Message history and active contacts were not migrated between generations. Report the exact active host, paths, headers, fields, tests, fixtures, and any locked package versions. If generation cannot be proven, report `Unknown generation`; low confidence blocks automatic execution. There is no official messaging SDK — integrations are raw REST.
 
-**Unofficial SDKs:** community wrappers (e.g. `Wkasel/loopmessages`, `n8n-nodes-loopmessage`) are not the API generation — when the repository *is* such an SDK, ignore its npm version for generation detection and fingerprint the wire calls instead. The migration object is then the SDK's consumers or bundled example apps, not the wrapper internals; state that interpretation explicitly.
+**Unofficial SDKs:** community wrappers (e.g. `Wkasel/loopmessages`, `n8n-nodes-loopmessage`, `calebnewtonusc/Loopmessage-SDK`) are not the API generation — when the repository *is* such an SDK, ignore its npm version for generation detection and fingerprint the wire calls instead. Unofficial SDK surfaces drift from the documented API (observed: missing `message_scheduled` events, no edit/unsend endpoints, different status-path shapes like `/v1/message/status/{id}/` vs documented `/api/v1/message/status/`); inventory the SDK's *actual* exports and wire calls, not the docs' endpoint list. The migration object is then the SDK's consumers or bundled example apps, not the wrapper internals; if the SDK is a standalone published package with no in-repo consumers, the honest verdict is usually infeasible-as-specified/do-not-migrate (its surface IS the provider contract) — state that interpretation explicitly.
 
 ## Capabilities to inventory
 
@@ -55,7 +55,7 @@ Inventory only active behavior, including:
 - per-message `status_callback` and `status_callback_header` fields, `subject`, `timeout`, and `sandbox` contact handling;
 - `/api/v1/auth/initiate/` imessage-link/deep-link flow;
 - typing and read indicators delivered as a **webhook-response body convention** (`{typing, read}` returned in the webhook response), not a separate API call — a transport-semantics difference to preserve or explicitly change;
-- client-side conversation/thread stores and status polling (`/api/v1/message/status/`);
+- client-side conversation/thread stores and status polling — the exact path varies by SDK generation (`/api/v1/message/status/` documented; unofficial SDKs have used `/v1/message/status/{id}/`); fingerprint the wire path actually called;
 - deep links and opt-in flow (`t.imsg.link` tracker);
 - message, conversation, sender, and event identifiers;
 - campaigns, groups, audiences, and CRM-specific transport behavior;

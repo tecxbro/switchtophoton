@@ -83,7 +83,8 @@ Record:
   - original repository;
   - existing fork;
   - new fork required;
-  - unavailable.
+  - unavailable;
+  - unknown/unverified — Phase-1 read-only inspection cannot always prove push/PR permissions; record `unknown/unverified` rather than guessing, and note that Phase 2 must reconfirm before writing.
 - Execution branch:
   - <branch>
 - Pull-request destination:
@@ -121,13 +122,16 @@ A provider name or comment alone is not sufficient. Confirm active runtime or te
 
 Before inventorying capabilities, classify what the repository *is* relative to the provider:
 
-- **Consumer application** — an app that calls the provider for messaging (the common case).
+- **Consumer application** — an app that calls the provider for messaging (the common case). The provider integration may be optional or env-gated (feature-flagged channel, sandbox-only demo path); a gated integration still counts — state explicitly whether it is in or out of migration scope rather than letting detection silently include or exclude it.
 - **Provider library/adapter** — a published package implementing the provider boundary (e.g. a Chat SDK adapter). The migration object is the package's public API surface: decide whether to rewrite in place, produce a renamed package, or migrate its in-repo consumers; preserve exported names/types or record the breaking-change decision.
-- **Provider façade / MCP server / proxy** — a server exposing the provider's API as tools or pass-through routes. The migration object is the *public wire contract* (paths, fields, error codes, token formats). Keiki MCP exposes org operations, not messaging primitives — MCP↔MCP is a role inversion, not parity.
-- **Provider SDK (first- or third-party)** — the library itself. Migrate only what has real consumers (in-repo or published downstream); example apps are documentation of intent, not the application. If no consumers exist in-repo, surface that as a scope question.
+- **Provider façade / MCP server / proxy** — a server exposing the provider's API as tools or pass-through routes, first- or third-party. The migration object is the *public wire contract* (paths, fields, error codes, token formats, tool surface, JSON-RPC semantics, auth/token formats issued or verified). Keiki MCP exposes org operations, not messaging primitives — MCP↔MCP is a role inversion, not parity.
+- **Provider SDK (first- or third-party)** — the library itself. Migrate only what has real consumers (in-repo or published downstream); example apps are documentation of intent, not the application. If no consumers exist in-repo, surface that as a scope question. A standalone *published* wrapper SDK whose entire surface is the provider contract usually resolves to infeasible-as-specified or do-not-migrate — migrating it deletes the product it exists to provide.
 - **Provisioning/ops tooling** — wizards, CLIs, or dashboards that create provider resources rather than send messages.
 - **Passive sink / webhook recorder / test harness** — stores or forwards provider events without calling the provider API (webhook-ingress-only). The migration object is the event record/forwarding contract; disposition is per *event type*, not per channel.
 - **Provider's own plugin fork** — an extended fork of the provider's official plugin/adapter. State whether the fork's customizations are inside or outside migration scope explicitly.
+- **Provider's own product** — the repository *is* the provider's own server, SDK, MCP server, or plugin published by the provider (e.g. the provider's official server repo, its own MCP package, its own agent plugin). The public wire contract is the product. Migrating it to Keiki inverts the repository's purpose — the correct verdict is normally **infeasible-as-specified / do-not-migrate**; only proceed if the user redefines the migration object (e.g. "add a Keiki export," "document the delta").
+- **Provider-authored host-platform plugin/template** — an official first-party plugin, channel adapter, or deployment template published by the provider for an agent host platform (Hermes, Claude Code, Eve, etc.). Consumers are external host installs, not in-repo code; the migration object is the plugin's public interface plus its wire contract. Before planning a boundary rewrite, check the **substrate/adapter-retirement path** (see §6): when the host platform has a Keiki adapter or the source provider is itself a Keiki line provider, replacing the plugin with the target's own adapter on a Keiki line may be the smallest safe migration.
+- **Deployment template / wrapper-image** — a template, wrapper, or repo whose provider boundary lives inside a pinned upstream container image, remote service, or generated artifact rather than in repo source. Repo evidence alone cannot inventory capabilities: report `blocked-on-evidence` and name the exact artifact to inspect (image tag/digest, upstream repo+commit, deployed service) before planning.
 
 If the repo shape is ambiguous or unprecedented, state the interpretation explicitly in the plan or ask the user before planning — do not guess silently.
 
@@ -139,7 +143,8 @@ A repository may contain several messaging providers or several SaaS vendors:
 - When several providers are active (primary/secondary adapters, feature-flagged transports, aggregator SDKs), the plan must state which boundary/boundaries are being replaced and the disposition of the rest — see the split-provider decision record in `keiki-targets.md`.
 - **Transitive-dependency caution**: aggregator and provider SDKs routinely drag *other* registered providers into lockfiles. A package appearing in a lockfile is not proof of use — require an import, call, host, header, env var, or payload fingerprint in application code.
 - **Fingerprint precedence**: when evidence disagrees, wire-format evidence (actual HTTP calls, headers, payloads, webhook schemas) outranks package names, docs claims, and comments. Conflicting wire evidence is reported as a conflict — never silently resolved.
-- **Confidence rubric**: fingerprints limited to configuration-only evidence (env-var names, provider name in docs/README, dedicated route paths) with zero wire-format or behavioral evidence cap at **Medium** — they can confirm intent but not the integration contract.
+- **Confidence rubric**: fingerprints limited to configuration-only evidence (env-var names, provider name in docs/README, dedicated route paths) with zero wire-format or behavioral evidence cap at **Medium** — they can confirm intent but not the integration contract. When the provider boundary lives inside an opaque pinned image, remote service, or generated artifact with no in-repo wire evidence, cap at **Low** and treat the repo as `blocked-on-evidence` until the artifact is inspected.
+- **Self-detection caution**: when the repository *is* the provider's own codebase (its server, SDK, docs, or website), consumer-shaped fingerprints will match its own source. Check authorship/ownership before classifying — a provider fingerprint inside the provider's own repo indicates repo shape "provider's own product," not a consumer integration.
 - **Version-source spread**: when manifest ranges, multiple lockfiles, or CI pins disagree (or a lockfile is stale), record every observed version and which source is authoritative — do not pick one silently.
 - **Private source-API reliance**: flag any use of undocumented/private provider SDK internals (e.g. `sdk._private.method`); it lowers detection confidence and may break on provider upgrades.
 
@@ -165,6 +170,8 @@ Report exactly one or more of:
 - `Known REST API generation`
 - `Known webhook generation`
 - `Raw REST, unversioned` — direct HTTPS/JSON calls against an unversioned surface
+- `Raw REST against known generation` — direct HTTPS/JSON calls with no SDK where base path, auth scheme, or payload shape identifies the generation (e.g. `/api/partner/v3` + bearer = Linq V3 raw REST)
+- `Raw REST, mixed endpoint generations` — direct HTTPS calls spanning more than one endpoint generation of the same provider (e.g. `/api/send-message` alongside `/api/v2/*`); report each endpoint family's generation separately
 - `Webhook-ingress-only` — the app receives provider webhooks but never calls the provider API (generation may be unknowable; confidence scales with blast radius)
 - `Generation-irrelevant` — no generation-bound code exists (pure webhook sink, config-only)
 - `Mixed generations` — genuinely different API generations in use (not merely mixed surfaces)
@@ -296,7 +303,9 @@ When the source provider is multi-channel (mail + SMS + iMessage + voice + conta
 
 **Turn-lifecycle design is mandatory for harness targets.** Every Keiki turn has a ≤10-minute deadline and must be settled via `POST {turnUrl}/complete`. The plan must name: the turn-context owner (how outbound calls learn the active `turnUrl`/token), when `/complete` fires relative to application work, behavior for sends with no live turn, settlement on failure paths, `midTurnStrategy` choice, multi-message turn fan-out, and serverless/async continuation (`waitUntil`/`after()` vs. turn deadline). Turns are *not* the source provider's request/response model — this is the central architectural delta of every webhook→harness migration.
 
-**Agent-platform cost check.** Keiki is an agent platform, not a dumb pipe: every inbound message spins an agent turn (model billing, trace, prompt-guard, memory). For apps that only need a transport boundary (passive notification sinks, fire-and-forget alerts), state the per-turn cost implication explicitly in the plan.
+**Agent-platform cost check.** Keiki is an agent platform, not a dumb pipe: every inbound message spins an agent turn (model billing, trace, prompt-guard, memory). For apps that only need a transport boundary (passive notification sinks, fire-and-forget alerts, polling loops), state the per-turn cost implication explicitly in the plan — including the semantic delta between a polling transport (e.g. a 4-second message poll) and per-message agent turns, which is a parity risk, not just a cost note.
+
+**Substrate / adapter-retirement check.** Before committing to a boundary rewrite, check whether the source provider is itself an importable Keiki line provider or whether the agent host platform has an official Keiki adapter (e.g. `@onkeiki/*` packages — Blooio, Photon, and Linq lines are Keiki substrates; `@onkeiki/eve` and similar adapters exist for agent hosts). When true, "replace the provider plugin with the target's own adapter on a Keiki line" is often the smallest safe migration — evaluate it alongside the harness-push rewrite and record why it was or wasn't chosen. Verify the adapter package exists, its exact planned version, and its availability gates before selecting it.
 
 **Credential hygiene.** Turn credentials (`Keiki-Turn-Token` `ht_…`, `kts1.…`) are short-lived secrets — the plan must require they are never logged, stored in event dumps, or included in error reports, especially for event-recording receivers that persist headers verbatim.
 
@@ -308,7 +317,8 @@ When selecting a mixed target, prove:
 - how credentials are configured;
 - which component owns events, connections, lifecycle, and shutdown;
 - how duplicate events, connections, or listeners are prevented;
-- how retries and ambiguous results are handled.
+- how retries and ambiguous results are handled;
+- which provider-side ingress must be retired or repointed — dashboard-managed webhook destinations, registered callbacks, polling loops, or socket subscriptions — and how double-delivery is prevented during cutover (a provider webhook left active alongside Keiki dispatch produces duplicate handling).
 
 Do not reject the Keiki developer REST API, external harness, agent API gateway, event webhooks, MCP server, or SDK surfaces using unsupported assumptions.
 
@@ -350,7 +360,7 @@ Before writing the plan, assign one verdict:
 
 - **Executable** — every active capability maps to a verified available Keiki surface; proceed to the approval gate.
 - **Executable with approved changes** — parity achievable only with explicit user-approved behavior changes (documented exclusions, split-provider retention, descoped channels); the approval gate covers these.
-- **Infeasible as specified** — a core capability has no Keiki surface and no approved workaround exists (e.g. verbatim cold outbound sends, provider voice APIs). Do **not** fill the full template with hundreds of unresolved rows and do **not** request the approval phrase — instead produce a short infeasibility report naming: the disqualifying capability/capabilities, what Keiki would need to support it, and the options (approved exclusions, partial migration with named losses, redesign, abort, or **do not migrate** — when the repo exists to observe/test the source provider itself, migration inverts its purpose; say so plainly). Execution is impossible regardless of approval.
+- **Infeasible as specified** — a core capability has no Keiki surface and no approved workaround exists (e.g. verbatim cold outbound sends, provider voice APIs). "Core" means reachable in the product's primary flow — a capability that is reachable only through secondary, admin, dev-only, or optional/demo paths is an **approved exclusion candidate**, not an infeasible trigger; classify criticality before fast-rejecting. Do **not** fill the full template with hundreds of unresolved rows and do **not** request the approval phrase — instead produce a short infeasibility report naming: the disqualifying capability/capabilities, what Keiki would need to support it, and the options (approved exclusions, partial migration with named losses, redesign, abort, or **do not migrate** — when the repo exists to observe/test the source provider, *is* the provider's own product, or is a published wrapper whose surface is the provider contract itself, migration inverts its purpose; say so plainly). Execution is impossible regardless of approval.
 - **Blocked on evidence/access** — detection confidence is Low, docs are unreachable, or no writable destination exists; state exactly what must be resolved.
 
 ### Keiki-side gap reporting
@@ -460,6 +470,7 @@ Required approach:
 - handle only the attachment readiness, retrieval, upload, MIME, size, timeout, unsupported-media, and transfer-failure cases applicable to active source behavior;
 - preserve or explicitly replace receiving-line filtering using verified event, conversation, or line identity;
 - settle every harness turn via `POST {turnUrl}/complete` — an unsettled turn dies at its deadline; fan out multi-message `messages[]` turns per message while sharing turn context, honor `midTurnStrategy`/`keiki.turn.arrival` semantics, and never feed `silent:true` platform entries to the agent as user messages;
+- map the source webhook deduplication key (`event_id`, `webhook_id`, `message.id`, provider event ID — whichever the source actually uses) onto Keiki turn/arrival dedup semantics explicitly; at-least-once source delivery plus Keiki turn fan-out can multiply duplicates if the dedup domain is not preserved;
 - handle `keiki.reaction` and cancellation dispatches as non-turn events (2xx ack, no settlement);
 - never log, persist, or include `Keiki-Turn-Token`/`ht_…`/`kts1.…` credentials in event dumps, error reports, or stored payloads — redact authorization headers before storage;
 - avoid retaining unverified RCS, SMS, iMessage, capability, or product claims in prompts or product copy.

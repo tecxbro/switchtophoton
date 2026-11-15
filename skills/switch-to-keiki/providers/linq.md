@@ -8,7 +8,7 @@ Linq V2 and V3 are materially different. Detect every active generation before p
 - https://docs.linqapp.com/channel/imessage/llms-full.txt
 - https://docs.linqapp.com/channel/whatsapp/llms.txt (only when the repository uses Linq's WhatsApp Partner API)
 
-Linq publishes per-channel documentation. Use the iMessage channel pair for messaging integrations and the WhatsApp channel pair for `whatsapp.messages.api.linqapp.com` integrations. Follow only relevant official agent-readable references permitted by [`index.md`](./index.md). Do not open ordinary Linq HTML pages or OpenAPI YAML files.
+Linq publishes per-channel documentation. Use the iMessage channel pair for messaging integrations and the WhatsApp channel pair for `whatsapp.messages.api.linqapp.com` integrations. Follow only relevant official agent-readable references permitted by [`index.md`](./index.md). Do not open ordinary Linq HTML pages. Linq's canonical OpenAPI document (`cdn.linqapp.com/openapi/linq-api-v3.yaml`, linked from its docs) is **not registered** in the index policy — do not treat it as an approved source even though it exists; the WhatsApp channel's "separate OpenAPI contract" is likewise unregistered. When exact enums or webhook fields are missing from the llms.txt pair, reconstruct them from repository wire evidence (handlers, fixtures, signature code) and mark the doc gap in the plan.
 
 ## Detection fingerprints
 
@@ -121,8 +121,19 @@ For service and line behavior, record:
 - Linq media URLs and Keiki attachment IDs or attachment resources may have different readiness, retrieval, upload, timeout, size, MIME-handling, and failure requirements.
 - Linq chat IDs and Keiki conversation IDs are provider-specific and must never be described as the same preserved identifier.
 - Linq's WhatsApp Partner API is a separate contract from the iMessage Partner API; detect which channel the repository uses before planning.
-- Inbound reactions arrive as `reaction.added`/`reaction.removed` webhook events — Keiki delivers tapbacks as `keiki.reaction` non-turn dispatches (push mode only; relay mode does not receive them, and the published schema has no sender field — group attribution may be impossible).
-- History fetch (`fetchMessages`), thread/conversation inspection (`fetchThread`/`getChat`), phone-number listing (`listPhoneNumbers`), and mark-read (`POST /v3/chats/{id}/read`) have no confirmed Keiki public equivalents — treat as likely blockers or approved exclusions, not silent drops.
+
+### V3 webhook contract (consolidated)
+
+The V3 inbound contract has several variants observed in the wild — fingerprint the repo's actual handlers rather than assuming one:
+
+- **Envelope:** `event_type` + `data` payload wrapper; per-event data schemas may carry their own version markers (e.g. `LinqMessageEventDataV2` inside a V3 integration — a schema version, not an API generation).
+- **Signature schemes (more than one in circulation):** `X-Webhook-Signature` HMAC (`sha256=` prefix, signed over `timestamp.body`, ~5-minute tolerance — deprecated but still sent) **and** `whsec_` Standard-Webhooks secrets/headers; some integrations verify both or neither. Record which scheme(s) the code actually checks and whether verification fails open when the secret is unset.
+- **Delivery semantics:** ~10-second acknowledgement deadline, at-least-once delivery with retries (~30 min window observed), `?version=` payload pinning on subscription.
+- **Dedup keys:** `event_id` on the envelope and/or `message.id` inside `data` — determine which the repo actually dedups on; they are not interchangeable.
+- **Event taxonomy varies by surface:** documented events include `reaction.added`/`reaction.removed`, but official first-party plugins have been observed handling `reaction.received` — treat the event-name list as per-registration, not universal.
+
+- Inbound reactions arrive as reaction webhook events (exact names vary — see above) — Keiki delivers tapbacks as `keiki.reaction` non-turn dispatches (push mode only; relay mode does not receive them, and the published schema has no sender field — group attribution may be impossible).
+- History fetch (`fetchMessages`), thread/conversation inspection (`fetchThread`/`getChat`), phone-number listing (`listPhoneNumbers`), and mark-read (`POST /v3/chats/{id}/read`) have no confirmed Keiki public equivalents — treat as likely blockers or approved exclusions, not silent drops. **Usage context matters:** a probe-only CLI call (`listPhoneNumbers` run once at setup) is a different criticality than a per-message `mark-read` on the inbound path — classify before listing as a blocker.
 - Process-local storage can still create a user-visible cutover requiring conversation reset, invalid onboarding links, credential loss, user-to-line reassignment, or re-onboarding when repository evidence shows those behaviors exist.
 - A hosted Keiki agent loop must not be selected for an existing Linq REST or webhook application solely because it supports a required capability. The plan must prove that it creates a smaller and safer migration than preserving REST, HTTP webhook, or Keiki harness-dispatch boundaries.
 - RCS, SMS, iMessage, fallback, and routing claims must be supported by the selected Keiki surface’s public contract or approved as behavior changes. Live verification blocks completion when the required credentials, lines, devices, and recipients are available.

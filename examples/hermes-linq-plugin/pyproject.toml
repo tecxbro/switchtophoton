@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-linq-plugin"
+version = "0.1.0"
+description = "Linq iMessage gateway adapter for Hermes Agent — real iMessage over the Linq API, no Mac required"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Linq" }]
+requires-python = ">=3.10"
+keywords = ["hermes", "hermes-agent", "linq", "imessage", "gateway", "platform", "plugin", "messaging"]
+dependencies = [
+  "httpx>=0.24",
+  "aiohttp>=3.8",
+]
+
+[project.urls]
+Homepage = "https://linqapp.com"
+Repository = "https://github.com/linq-team/hermes-linq-plugin"
+
+# Hermes discovers pip-installed plugins through this entry-point group. The
+# value points at the package's ``register(ctx)`` callable.
+[project.entry-points."hermes_agent.plugins"]
+linq = "hermes_linq_plugin:register"
+
+[tool.setuptools]
+# The plugin modules live at the repo root (so the directory can also be
+# dropped straight into ``~/.hermes/plugins/linq/``). Map them into an
+# importable package name for the pip-install path.
+py-modules = ["__init__", "adapter", "cli", "auth", "signing", "linq_api"]
