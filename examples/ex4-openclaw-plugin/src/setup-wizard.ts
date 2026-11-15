@@ -1,0 +1,2138 @@
+import {
+  InkboxAPIError,
+  Inkbox,
+  type AgentIdentity,
+  AUTH_SUBTYPE_API_KEY_AGENT_SCOPED_CLAIMED,
+  AUTH_SUBTYPE_API_KEY_AGENT_SCOPED_UNCLAIMED,
+  AUTH_SUBTYPE_API_KEY_ADMIN_SCOPED,
+} from "@inkbox/sdk";
+import { configureSlack } from "./slack-setup.js";
+import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
+import { chmod, mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
+import { homedir } from "node:os";
+import { dirname, isAbsolute, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import JSON5 from "json5";
+import type { Prompter } from "./prompt.js";
+import {
+  defaultGatewayCommandRunner,
+  offerGatewayRestart,
+  printReadyBanner,
+  type GatewayCommandRunner,
+} from "./gateway-service.js";
+import { writeIdentityState, readIdentityState } from "./state.js";
+import { DEFAULT_ACCOUNT_ID, resolveInkboxAccount } from "./accounts.js";
+import { inkboxBaseUrlOptions, inkboxClientOptions } from "./sdk-options.js";
+import {
+  inkboxCallWebsocketPath,
+  inkboxWebhookPath,
+  publicUrl,
+  websocketUrl,
+} from "./call-websocket.js";
+import {
+  CALL_EVENT_TYPES,
+  IMESSAGE_EVENT_TYPES,
+  WHATSAPP_EVENT_TYPES,
+  MAIL_EVENT_TYPES,
+  TEXT_EVENT_TYPES,
+  reconcileWebhookSubscription,
+} from "./inbound/subscriptions.js";
+import {
+  type PhoneVoiceStack,
+  type VoiceAiAuthorityMode,
+} from "./voice-stack.js";
+
+export interface WizardConfig {
+  slackEnabled?: boolean;
+  groupReplyMode?: "auto" | "mention";
+  companionResponseMode?: "safe" | "relaxed";
+  apiKey: string;
+  identity: string;
+  signingKey?: string;
+  baseUrl?: string;
+  tunnelName?: string;
+  voiceStack?: PhoneVoiceStack;
+  voiceAiAuthorityMode?: VoiceAiAuthorityMode;
+  voicemailDetection?: "enabled" | "disabled";
+  voiceAgentPrewarm?: boolean;
+  voiceRealtime?: WizardVoiceRealtimeConfig;
+}
+
+export interface WizardVoiceRealtimeConfig {
+  enabled: boolean;
+  provider: string;
+  model?: string;
+  voice?: string;
+  instructions?: string;
+  toolPolicy: "safe-read-only" | "owner" | "none";
+  consultPolicy: "auto" | "substantive" | "always";
+  providers?: Record<string, Record<string, unknown>>;
+  fallbackToInkboxSttTts: boolean;
+}
+
+export interface WizardPersistResult {
+  ok: boolean;
+  message?: string;
+}
+
+export type WizardConfigPersister = (
+  config: WizardConfig,
+  context: { currentConfig?: unknown; env: NodeJS.ProcessEnv },
+) => Promise<WizardPersistResult>;
+
+export interface WizardOptions {
+  prompter: Prompter;
+  currentConfig?: unknown;
+  persistConfig?: WizardConfigPersister;
+  validateOpenAiRealtimeApiKey?: OpenAiRealtimeValidator;
+  // Lets tests drive the gateway (re)start step without spawning the host CLI.
+  runGatewayCommand?: GatewayCommandRunner;
+  // Lets tests inject env without poking process.env.
+  env?: NodeJS.ProcessEnv;
+}
+
+export interface WizardResult {
+  ok: boolean;
+  message?: string;
+  config?: WizardConfig;
+  persisted?: boolean;
+}
+
+const SMS_OPT_IN_POLL_MS = 3000;
+const IMESSAGE_CONNECT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
+const IMESSAGE_CONNECT_POLL_MS = 3000;
+const SELF_SIGNUP_VERIFICATION_NOTE = "OpenClaw Inkbox plugin setup";
+const OPENAI_REALTIME_MODEL = "gpt-realtime-2";
+const OPENAI_REALTIME_VOICE = "cedar";
+const OPENAI_REALTIME_CLIENT_SECRETS_URL =
+  "https://api.openai.com/v1/realtime/client_secrets";
+const requireOptional = createRequire(import.meta.url);
+const SETUP_WIZARD_DIR = dirname(fileURLToPath(import.meta.url));
+const AVATAR_FILENAME = "openclaw_with_phone.png";
+const AVATAR_PATH_CANDIDATES = [
+  join(SETUP_WIZARD_DIR, "..", "assets", AVATAR_FILENAME),
+  join(SETUP_WIZARD_DIR, "..", "..", "assets", AVATAR_FILENAME),
+];
+
+export type OpenAiRealtimeValidationResult =
+  | { ok: true; message?: string }
+  | { ok: false; message: string };
+
+export type OpenAiRealtimeValidator = (
+  apiKey: string,
+  model: string,
+) => Promise<OpenAiRealtimeValidationResult>;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isStartText(text: string | null | undefined): boolean {
+  return text?.trim().toUpperCase() === "START";
+}
+
+export function smsToQrPayload(number: string, body: string): string {
+  return `SMSTO:${number}:${body}`;
+}
+
+function smsDraftLink(number: string, body: string): string {
+  return `sms:${number}?&body=${encodeURIComponent(body)}`;
+}
+
+export function showQr(data: string): boolean {
+  if (!process.stdout.isTTY) {
+    return false;
+  }
+  try {
+    const qr = requireOptional("qrcode-terminal") as {
+      generate: (
+        input: string,
+        options: { small: boolean },
+        callback: (output: string) => void,
+      ) => void;
+    };
+    qr.generate(data, { small: true }, (output) => console.log(output));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeOptional(value: string): string | undefined {
+  const trimmed = value.trim();
+  return trimmed || undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function readPath(root: unknown, path: string[]): unknown {
+  let cur = root;
+  for (const part of path) {
+    if (!isRecord(cur)) {
+      return undefined;
+    }
+    cur = cur[part];
+  }
+  return cur;
+}
+
+function addUniqueString(value: unknown, entry: string): string[] {
+  const existing = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+    : [];
+  return existing.includes(entry) ? existing : [...existing, entry];
+}
+
+function resolveHome(env: NodeJS.ProcessEnv): string {
+  return env.OPENCLAW_HOME?.trim() || env.HOME?.trim() || homedir();
+}
+
+function resolveUserPath(input: string, env: NodeJS.ProcessEnv): string {
+  const trimmed = input.trim();
+  if (trimmed === "~") {
+    return resolveHome(env);
+  }
+  if (trimmed.startsWith("~/")) {
+    return join(resolveHome(env), trimmed.slice(2));
+  }
+  return isAbsolute(trimmed) ? trimmed : resolve(trimmed);
+}
+
+function resolveOpenClawConfigPath(env: NodeJS.ProcessEnv): string {
+  const explicitConfig = env.OPENCLAW_CONFIG_PATH?.trim();
+  if (explicitConfig) {
+    return resolveUserPath(explicitConfig, env);
+  }
+  const stateDir = env.OPENCLAW_STATE_DIR?.trim()
+    ? resolveUserPath(env.OPENCLAW_STATE_DIR, env)
+    : join(resolveHome(env), ".openclaw");
+  return join(stateDir, "openclaw.json");
+}
+
+function toolAllowOperation(currentConfig: unknown): { path: string; value: string[] } {
+  const allow = readPath(currentConfig, ["tools", "allow"]);
+  if (Array.isArray(allow)) {
+    return { path: "tools.allow", value: addUniqueString(allow, "inkbox") };
+  }
+  const alsoAllow = readPath(currentConfig, ["tools", "alsoAllow"]);
+  if (Array.isArray(alsoAllow)) {
+    return { path: "tools.alsoAllow", value: addUniqueString(alsoAllow, "inkbox") };
+  }
+  const profile = readPath(currentConfig, ["tools", "profile"]);
+  if (typeof profile === "string" && profile.trim()) {
+    return { path: "tools.alsoAllow", value: ["inkbox"] };
+  }
+  return { path: "tools.allow", value: ["inkbox"] };
+}
+
+export function buildOpenClawConfigBatch(
+  config: WizardConfig,
+  currentConfig?: unknown,
+): Array<{ path: string; value: unknown }> {
+  const batch: Array<{ path: string; value: unknown }> = [
+    { path: "channels.inkbox.enabled", value: true },
+    { path: "channels.inkbox.apiKey", value: config.apiKey },
+    { path: "channels.inkbox.identity", value: config.identity },
+    // Hosted post-call settlement binds the exact generated run before any
+    // side-effecting tool executes. OpenClaw gates before_agent_run for every
+    // non-bundled plugin, so setup must explicitly trust this first-party
+    // hook or Voice AI follow-ups cannot be proven and safely settled.
+    {
+      path: "plugins.entries.inkbox.hooks.allowConversationAccess",
+      value: true,
+    },
+  ];
+  if (config.groupReplyMode) batch.push({ path: "channels.inkbox.groupReplyMode", value: config.groupReplyMode });
+  if (config.companionResponseMode) batch.push({ path: "channels.inkbox.companionResponseMode", value: config.companionResponseMode });
+  if (config.signingKey) {
+    batch.push({ path: "channels.inkbox.signingKey", value: config.signingKey });
+  }
+  if (config.baseUrl) {
+    batch.push({ path: "channels.inkbox.baseUrl", value: config.baseUrl });
+  }
+  if (config.tunnelName) {
+    batch.push({ path: "channels.inkbox.tunnelName", value: config.tunnelName });
+  }
+  if (config.voiceRealtime) {
+    batch.push({ path: "channels.inkbox.voiceRealtime", value: config.voiceRealtime });
+  }
+  if (config.voiceStack) {
+    batch.push({ path: "channels.inkbox.voiceStack", value: config.voiceStack });
+  }
+  if (config.voiceAiAuthorityMode) {
+    batch.push({
+      path: "channels.inkbox.voiceAiAuthorityMode",
+      value: config.voiceAiAuthorityMode,
+    });
+  }
+  if (config.voicemailDetection) {
+    batch.push({
+      path: "channels.inkbox.voicemailDetection",
+      value: config.voicemailDetection,
+    });
+  }
+  if (typeof config.voiceAgentPrewarm === "boolean") {
+    batch.push({
+      path: "channels.inkbox.voiceAgentPrewarm",
+      value: config.voiceAgentPrewarm,
+    });
+  }
+  batch.push(toolAllowOperation(currentConfig));
+  return batch;
+}
+
+function setConfigPath(root: Record<string, unknown>, path: string, value: unknown): void {
+  const parts = path.split(".").filter(Boolean);
+  let cur: Record<string, unknown> = root;
+  for (const part of parts.slice(0, -1)) {
+    const existing = cur[part];
+    if (!isRecord(existing)) {
+      cur[part] = {};
+    }
+    cur = cur[part] as Record<string, unknown>;
+  }
+  cur[parts[parts.length - 1]!] = value;
+}
+
+async function readOpenClawConfig(path: string): Promise<Record<string, unknown>> {
+  if (!existsSync(path)) {
+    return {};
+  }
+  const raw = await readFile(path, "utf8");
+  if (!raw.trim()) {
+    return {};
+  }
+  const parsed = JSON5.parse(raw);
+  if (!isRecord(parsed)) {
+    throw new Error(`OpenClaw config at ${path} must contain a JSON object.`);
+  }
+  return parsed;
+}
+
+export async function persistOpenClawConfigFile(
+  config: WizardConfig,
+  context: { currentConfig?: unknown; env: NodeJS.ProcessEnv },
+): Promise<WizardPersistResult> {
+  const configPath = resolveOpenClawConfigPath(context.env);
+  try {
+    const next = await readOpenClawConfig(configPath);
+    const batch = buildOpenClawConfigBatch(config, context.currentConfig ?? next);
+    for (const entry of batch) {
+      setConfigPath(next, entry.path, entry.value);
+    }
+    await mkdir(dirname(configPath), { recursive: true });
+    const tempPath = `${configPath}.${process.pid}.${randomUUID()}.tmp`;
+    await writeFile(tempPath, `${JSON.stringify(next, null, 2)}\n`, {
+      mode: 0o600,
+      flag: "wx",
+    });
+    await chmod(tempPath, 0o600).catch(() => {});
+    await rename(tempPath, configPath);
+    await chmod(configPath, 0o600).catch(() => {});
+    return { ok: true, message: `Updated ${configPath}` };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+function summarizeIdentity(identity: {
+  agentHandle: string;
+  displayName?: string | null;
+  emailAddress?: string | null;
+  mailbox?: { emailAddress?: string | null } | null;
+  phoneNumber?: { number?: string | null; type?: string | null; smsStatus?: string | null } | null;
+}): string {
+  const parts = [identity.agentHandle];
+  if (identity.displayName) parts.push(`display=${identity.displayName}`);
+  const email = identity.mailbox?.emailAddress ?? identity.emailAddress;
+  if (email) parts.push(`email=${email}`);
+  if (identity.phoneNumber?.number) {
+    const smsStatus = identity.phoneNumber.smsStatus ? ` sms=${identity.phoneNumber.smsStatus}` : "";
+    parts.push(`phone=${identity.phoneNumber.number}${smsStatus}`);
+  }
+  return parts.join("  ");
+}
+
+function messageFromError(error: unknown): string {
+  if (error instanceof InkboxAPIError) {
+    const detail =
+      typeof error.detail === "string" ? error.detail : JSON.stringify(error.detail ?? {});
+    return `HTTP ${error.statusCode} ${detail}`;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
+function maskSecret(secret: string): string {
+  const trimmed = secret.trim();
+  if (trimmed.length <= 8) {
+    return "*".repeat(trimmed.length);
+  }
+  return `${trimmed.slice(0, 6)}${"*".repeat(Math.max(8, trimmed.length - 10))}${trimmed.slice(-4)}`;
+}
+
+function avatarPath(): string | undefined {
+  return AVATAR_PATH_CANDIDATES.find((candidate) => existsSync(candidate));
+}
+
+function avatarEndpoint(baseUrl: string | undefined, handle: string): string {
+  const root = (baseUrl?.trim() || "https://inkbox.ai").replace(/\/+$/, "");
+  return `${root}/api/v1/identities/${handle}/avatar`;
+}
+
+async function identityHasAvatar(
+  baseUrl: string | undefined,
+  apiKey: string,
+  handle: string,
+): Promise<boolean | undefined> {
+  try {
+    const response = await fetch(avatarEndpoint(baseUrl, handle), {
+      headers: { "X-API-Key": apiKey },
+    });
+    if (response.status === 200) {
+      return true;
+    }
+    if (response.status === 404) {
+      return false;
+    }
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function uploadAvatar(params: {
+  baseUrl: string | undefined;
+  apiKey: string;
+  handle: string;
+  image: Buffer;
+}): Promise<{ ok: boolean; detail: string }> {
+  try {
+    const form = new FormData();
+    form.append(
+      "file",
+      new Blob([new Uint8Array(params.image)], { type: "image/png" }),
+      AVATAR_FILENAME,
+    );
+    const response = await fetch(avatarEndpoint(params.baseUrl, params.handle), {
+      method: "PUT",
+      headers: { "X-API-Key": params.apiKey },
+      body: form,
+    });
+    if (response.status === 200 || response.status === 201) {
+      return { ok: true, detail: "ok" };
+    }
+    const detail = await response.text().catch(() => "");
+    return { ok: false, detail: `HTTP ${response.status} ${detail.slice(0, 200)}` };
+  } catch (error) {
+    return { ok: false, detail: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+export async function configureAgentAvatar(params: {
+  baseUrl?: string;
+  apiKey: string;
+  identityHandle: string;
+  isSignup: boolean;
+  prompter: Pick<Prompter, "confirm">;
+}): Promise<void> {
+  const handle = params.identityHandle.trim();
+  const path = avatarPath();
+  if (!handle || !path) {
+    return;
+  }
+
+  if (!params.isSignup) {
+    if ((await identityHasAvatar(params.baseUrl, params.apiKey, handle)) === true) {
+      return;
+    }
+    console.log("\nAgent avatar:");
+    console.log("  This agent has no avatar on its Inkbox contact card.");
+    const addAvatar = await params.prompter.confirm("Add the OpenClaw avatar?", true);
+    if (!addAvatar) {
+      console.log("  Skipped. You can set an avatar later in the Inkbox console.");
+      return;
+    }
+  }
+
+  let image: Buffer;
+  try {
+    image = await readFile(path);
+  } catch (error) {
+    console.log(
+      `  Could not read the bundled avatar: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    return;
+  }
+
+  const uploaded = await uploadAvatar({
+    baseUrl: params.baseUrl,
+    apiKey: params.apiKey,
+    handle,
+    image,
+  });
+  if (uploaded.ok) {
+    console.log("  Attached the OpenClaw avatar to this agent.");
+  } else {
+    console.log(`  Could not attach the avatar: ${uploaded.detail}`);
+    console.log("  You can set one later in the Inkbox console.");
+  }
+}
+
+function defaultVoiceRealtimeConfig(
+  enabled: boolean,
+  apiKey?: string,
+): WizardVoiceRealtimeConfig {
+  return {
+    enabled,
+    provider: "openai",
+    model: OPENAI_REALTIME_MODEL,
+    voice: OPENAI_REALTIME_VOICE,
+    toolPolicy: "owner",
+    consultPolicy: "substantive",
+    fallbackToInkboxSttTts: true,
+    ...(apiKey
+      ? {
+          providers: {
+            openai: {
+              apiKey,
+              model: OPENAI_REALTIME_MODEL,
+              voice: OPENAI_REALTIME_VOICE,
+            },
+          },
+        }
+      : {}),
+  };
+}
+
+function mergeVoiceRealtimeConfig(
+  existing: unknown,
+  next: WizardVoiceRealtimeConfig,
+): WizardVoiceRealtimeConfig {
+  if (!isRecord(existing)) {
+    return next;
+  }
+  const existingProviders = isRecord(existing.providers) ? existing.providers : {};
+  const nextProviders = next.providers ?? {};
+  const providers = { ...existingProviders, ...nextProviders } as Record<
+    string,
+    Record<string, unknown>
+  >;
+  if (isRecord(existingProviders.openai) || isRecord(nextProviders.openai)) {
+    providers.openai = {
+      ...(isRecord(existingProviders.openai) ? existingProviders.openai : {}),
+      ...(isRecord(nextProviders.openai) ? nextProviders.openai : {}),
+    };
+  }
+  return {
+    ...defaultVoiceRealtimeConfig(next.enabled),
+    ...(existing as Partial<WizardVoiceRealtimeConfig>),
+    ...next,
+    ...(Object.keys(providers).length > 0 ? { providers } : {}),
+    enabled: next.enabled,
+  };
+}
+
+function disabledVoiceRealtimeConfig(existing: unknown): WizardVoiceRealtimeConfig {
+  return mergeVoiceRealtimeConfig(existing, defaultVoiceRealtimeConfig(false));
+}
+
+function parseOpenAiRealtimeValidationMessage(payload: unknown): string | undefined {
+  if (!isRecord(payload)) {
+    return undefined;
+  }
+  const error = payload.error;
+  if (isRecord(error)) {
+    const message = typeof error.message === "string" ? error.message : undefined;
+    const code = typeof error.code === "string" ? error.code : undefined;
+    const type = typeof error.type === "string" ? error.type : undefined;
+    return [code ?? type, message].filter(Boolean).join(": ") || undefined;
+  }
+  const message = payload.message;
+  return typeof message === "string" ? message : undefined;
+}
+
+export async function validateOpenAiRealtimeApiKey(
+  apiKey: string,
+  model = OPENAI_REALTIME_MODEL,
+): Promise<OpenAiRealtimeValidationResult> {
+  let response: Response;
+  try {
+    response = await fetch(OPENAI_REALTIME_CLIENT_SECRETS_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        expires_after: { anchor: "created_at", seconds: 60 },
+        session: { type: "realtime", model },
+      }),
+    });
+  } catch (error) {
+    return { ok: false, message: error instanceof Error ? error.message : String(error) };
+  }
+
+  let payload: unknown;
+  try {
+    payload = await response.json();
+  } catch {
+    payload = undefined;
+  }
+
+  if (!response.ok) {
+    return {
+      ok: false,
+      message:
+        parseOpenAiRealtimeValidationMessage(payload) ??
+        `HTTP ${response.status} ${response.statusText}`,
+    };
+  }
+  return { ok: true };
+}
+
+type DetectedOpenAiApiKey = {
+  apiKey: string;
+  source: string;
+};
+
+function stringFromPath(root: unknown, path: string[]): string | undefined {
+  const value = readPath(root, path);
+  return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function getExistingVoiceRealtimeConfig(existingAccount: {
+  config?: { voiceRealtime?: unknown };
+}): unknown {
+  return existingAccount.config?.voiceRealtime;
+}
+
+function resolveOpenClawStateDir(env: NodeJS.ProcessEnv): string {
+  const explicitStateDir = env.OPENCLAW_STATE_DIR?.trim();
+  return explicitStateDir
+    ? resolveUserPath(explicitStateDir, env)
+    : join(resolveHome(env), ".openclaw");
+}
+
+function resolveOpenClawAgentId(currentConfig: unknown, env: NodeJS.ProcessEnv): string {
+  const envAgentId = env.OPENCLAW_AGENT_ID?.trim();
+  if (envAgentId) {
+    return envAgentId;
+  }
+  const configAgentId =
+    stringFromPath(currentConfig, ["agents", "defaults", "id"]) ??
+    stringFromPath(currentConfig, ["agents", "default", "id"]);
+  return configAgentId ?? "main";
+}
+
+function resolveAuthProfilesPath(currentConfig: unknown, env: NodeJS.ProcessEnv): string {
+  const explicitPath = env.OPENCLAW_AUTH_PROFILES_PATH?.trim();
+  if (explicitPath) {
+    return resolveUserPath(explicitPath, env);
+  }
+  const agentId = resolveOpenClawAgentId(currentConfig, env);
+  return join(resolveOpenClawStateDir(env), "agents", agentId, "agent", "auth-profiles.json");
+}
+
+function configuredOpenAiProfileIds(currentConfig: unknown): string[] {
+  const ids: string[] = [];
+  const add = (value: unknown) => {
+    if (typeof value === "string" && value.trim() && !ids.includes(value.trim())) {
+      ids.push(value.trim());
+    }
+  };
+
+  const ordered = readPath(currentConfig, ["auth", "order", "openai"]);
+  if (Array.isArray(ordered)) {
+    ordered.forEach(add);
+  }
+
+  const configProfiles = readPath(currentConfig, ["auth", "profiles"]);
+  if (isRecord(configProfiles)) {
+    for (const [profileId, profile] of Object.entries(configProfiles)) {
+      if (!isRecord(profile)) {
+        continue;
+      }
+      const provider = typeof profile.provider === "string" ? profile.provider : "";
+      const mode = typeof profile.mode === "string" ? profile.mode : "";
+      if (provider === "openai" && mode === "api_key") {
+        add(profileId);
+      }
+    }
+  }
+
+  add("openai:default");
+  return ids;
+}
+
+function resolveProfileApiKey(profile: unknown, env: NodeJS.ProcessEnv): string | undefined {
+  if (!isRecord(profile)) {
+    return undefined;
+  }
+  if (profile.provider !== "openai" || profile.type !== "api_key") {
+    return undefined;
+  }
+  if (typeof profile.key === "string" && profile.key.trim()) {
+    return profile.key.trim();
+  }
+  const keyRef = profile.keyRef;
+  if (isRecord(keyRef) && keyRef.source === "env" && typeof keyRef.id === "string") {
+    const value = env[keyRef.id]?.trim();
+    return value || undefined;
+  }
+  return undefined;
+}
+
+async function detectOpenAiApiKeyFromAuthProfiles(
+  currentConfig: unknown,
+  env: NodeJS.ProcessEnv,
+): Promise<DetectedOpenAiApiKey | undefined> {
+  const profilesPath = resolveAuthProfilesPath(currentConfig, env);
+  if (!existsSync(profilesPath)) {
+    return undefined;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await readFile(profilesPath, "utf8"));
+  } catch {
+    return undefined;
+  }
+
+  const profiles = readPath(parsed, ["profiles"]);
+  if (!isRecord(profiles)) {
+    return undefined;
+  }
+
+  for (const profileId of configuredOpenAiProfileIds(currentConfig)) {
+    const apiKey = resolveProfileApiKey(profiles[profileId], env);
+    if (apiKey) {
+      return {
+        apiKey,
+        source: `OpenClaw auth profile ${profileId}`,
+      };
+    }
+  }
+
+  for (const [profileId, profile] of Object.entries(profiles)) {
+    const apiKey = resolveProfileApiKey(profile, env);
+    if (apiKey) {
+      return {
+        apiKey,
+        source: `OpenClaw auth profile ${profileId}`,
+      };
+    }
+  }
+
+  return undefined;
+}
+
+async function detectOpenAiApiKey(params: {
+  currentConfig: unknown;
+  existingAccount: { config?: { voiceRealtime?: unknown } };
+  env: NodeJS.ProcessEnv;
+}): Promise<DetectedOpenAiApiKey | undefined> {
+  const explicitRealtimeKey =
+    stringFromPath(params.currentConfig, [
+      "channels",
+      "inkbox",
+      "voiceRealtime",
+      "providers",
+      "openai",
+      "apiKey",
+    ]) ??
+    stringFromPath(getExistingVoiceRealtimeConfig(params.existingAccount), [
+      "providers",
+      "openai",
+      "apiKey",
+    ]);
+  if (explicitRealtimeKey) {
+    return {
+      apiKey: explicitRealtimeKey,
+      source: "channels.inkbox.voiceRealtime.providers.openai.apiKey",
+    };
+  }
+
+  const fromRealtimeEnv = params.env.INKBOX_REALTIME_API_KEY?.trim();
+  if (fromRealtimeEnv) {
+    return {
+      apiKey: fromRealtimeEnv,
+      source: "INKBOX_REALTIME_API_KEY",
+    };
+  }
+
+  const fromAuthProfile = await detectOpenAiApiKeyFromAuthProfiles(params.currentConfig, params.env);
+  if (fromAuthProfile) {
+    return fromAuthProfile;
+  }
+
+  const fromEnv = params.env.OPENAI_API_KEY?.trim();
+  if (fromEnv) {
+    return { apiKey: fromEnv, source: "OPENAI_API_KEY" };
+  }
+
+  return undefined;
+}
+
+const PHONE_VOICE_STACK_OPTIONS: Array<{
+  value: PhoneVoiceStack;
+  label: string;
+  hint: string;
+}> = [
+  {
+    value: "inkbox_voice_ai",
+    label: "Inkbox Voice AI",
+    hint: "Inkbox handles calls; OpenClaw is notified when each call ends.",
+  },
+  {
+    value: "openai_realtime",
+    label: "OpenAI Realtime API",
+    hint: "Bring your own API key; the realtime agent can consult OpenClaw.",
+  },
+  {
+    value: "inkbox_tts_stt",
+    label: "Inkbox TTS/STT",
+    hint: "OpenClaw talks through Inkbox speech services with increased latency.",
+  },
+];
+
+async function selectOption<T extends string>(params: {
+  prompter: Prompter;
+  message: string;
+  options: Array<{ value: T; label: string; hint?: string }>;
+  initialValue: T;
+}): Promise<T> {
+  if (params.prompter.select) {
+    return params.prompter.select(
+      params.message,
+      params.options,
+      params.initialValue,
+    );
+  }
+  console.log(`\n${params.message}`);
+  params.options.forEach((option, index) => {
+    console.log(`  ${index + 1}. ${option.label}${option.hint ? ` — ${option.hint}` : ""}`);
+  });
+  const defaultIndex = Math.max(
+    0,
+    params.options.findIndex((option) => option.value === params.initialValue),
+  );
+  const answer = await params.prompter.ask("Select", String(defaultIndex + 1));
+  const selectedIndex = Number.parseInt(answer, 10) - 1;
+  return params.options[selectedIndex]?.value ?? params.initialValue;
+}
+
+async function promptForRealtimeStackConfig(params: {
+  currentConfig: unknown;
+  existingAccount: { config?: { voiceRealtime?: unknown } };
+  env: NodeJS.ProcessEnv;
+  prompter: Prompter;
+  validate: OpenAiRealtimeValidator;
+}): Promise<WizardVoiceRealtimeConfig | undefined> {
+  const detected = await detectOpenAiApiKey(params);
+  if (detected) {
+    console.log(`  Found an OpenAI API key in ${detected.source}.`);
+  }
+  const apiKey =
+    detected?.apiKey ??
+    normalizeOptional(
+      await (params.prompter.askSecret?.("Paste your OpenAI API key for Realtime calls") ??
+        params.prompter.ask("Paste your OpenAI API key for Realtime calls")),
+    );
+  if (!apiKey) {
+    console.log("  No API key was provided. Choose a phone call voice stack again.");
+    return undefined;
+  }
+  console.log(`  Testing OpenAI Realtime access with ${OPENAI_REALTIME_MODEL}...`);
+  const validation = await params.validate(apiKey, OPENAI_REALTIME_MODEL);
+  if (!validation.ok) {
+    console.log("  OpenAI Realtime validation failed.");
+    console.log(`  ${validation.message.replaceAll(apiKey, maskSecret(apiKey))}`);
+    console.log("  Choose a phone call voice stack again.");
+    return undefined;
+  }
+  console.log("  OpenAI Realtime validation passed.");
+  return mergeVoiceRealtimeConfig(
+    params.existingAccount.config?.voiceRealtime,
+    defaultVoiceRealtimeConfig(true, apiKey),
+  );
+}
+
+async function loadAdminIdentity(params: {
+  baseUrl?: string;
+  identityHandle: string;
+  prompter: Prompter;
+}): Promise<AgentIdentity | undefined> {
+  const adminApiKey = normalizeOptional(
+    await (params.prompter.askSecret?.(
+      "Paste an admin-scoped Inkbox API key for this authority change",
+    ) ?? params.prompter.ask("Paste an admin-scoped Inkbox API key for this authority change")),
+  );
+  if (!adminApiKey) {
+    console.log("  An admin-scoped API key is required to change saved Voice AI authority.");
+    return undefined;
+  }
+  try {
+    const adminClient = new Inkbox(inkboxClientOptions(adminApiKey, params.baseUrl));
+    const info = await adminClient.whoami();
+    if (
+      info.authType !== "api_key" ||
+      info.authSubtype !== AUTH_SUBTYPE_API_KEY_ADMIN_SCOPED
+    ) {
+      console.log("  That credential is not an admin-scoped API key.");
+      return undefined;
+    }
+    return await adminClient.getIdentity(params.identityHandle);
+  } catch (error) {
+    const message = messageFromError(error).replaceAll(adminApiKey, maskSecret(adminApiKey));
+    console.log(`  Could not validate the admin-scoped API key: ${message}`);
+    return undefined;
+  }
+}
+
+interface VoiceAiSetupTransaction {
+  rollback(): Promise<void>;
+}
+
+function hostedAgentConfigValues(config: any): {
+  voice?: string;
+  model?: string;
+  instructions?: string;
+} {
+  return {
+    ...(typeof config?.voice === "string" ? { voice: config.voice } : {}),
+    ...(typeof config?.model === "string" ? { model: config.model } : {}),
+    ...(typeof config?.instructions === "string"
+      ? { instructions: config.instructions }
+      : {}),
+  };
+}
+
+function incomingCallActionValues(config: any): {
+  incomingCallAction: string;
+  clientWebsocketUrl?: string;
+  incomingCallWebhookUrl?: string;
+} {
+  return {
+    incomingCallAction: String(config?.incomingCallAction ?? "auto_reject"),
+    ...(typeof config?.clientWebsocketUrl === "string"
+      ? { clientWebsocketUrl: config.clientWebsocketUrl }
+      : {}),
+    ...(typeof config?.incomingCallWebhookUrl === "string"
+      ? { incomingCallWebhookUrl: config.incomingCallWebhookUrl }
+      : {}),
+  };
+}
+
+async function configureVoiceAi(params: {
+  identity: AgentIdentity;
+  identityHandle: string;
+  authorityIdentity?: AgentIdentity;
+  baseUrl?: string;
+  prompter: Prompter;
+}): Promise<{
+  authorityMode: VoiceAiAuthorityMode;
+  authorityIdentity?: AgentIdentity;
+  transaction: VoiceAiSetupTransaction;
+} | undefined> {
+  if (
+    typeof (params.identity as any).getHostedAgentConfig !== "function" ||
+    typeof (params.identity as any).setHostedAgentConfig !== "function" ||
+    typeof (params.identity as any).getIncomingCallAction !== "function" ||
+    typeof (params.identity as any).setIncomingCallAction !== "function"
+  ) {
+    console.log("  Inkbox Voice AI setup requires @inkbox/sdk 0.6.10.");
+    return undefined;
+  }
+  let previous: any;
+  let previousIncoming: any;
+  try {
+    [previous, previousIncoming] = await Promise.all([
+      (params.identity as any).getHostedAgentConfig(),
+      (params.identity as any).getIncomingCallAction(),
+    ]);
+  } catch (error) {
+    console.log(`  Could not read the current phone-call configuration: ${messageFromError(error)}`);
+    return undefined;
+  }
+  const previousAuthority: VoiceAiAuthorityMode =
+    previous?.authorityMode === "yolo" ? "yolo" : "contact_scoped";
+  const authorityMode = await selectOption({
+    prompter: params.prompter,
+    message: "How much authority should Inkbox Voice AI have?",
+    initialValue: previousAuthority,
+    options: [
+      {
+        value: "contact_scoped" as const,
+        label: "Contact-scoped",
+        hint: "Tools are limited to the current caller and conversation.",
+      },
+      {
+        value: "yolo" as const,
+        label: "YOLO mode",
+        hint: "Tools can use the identity's wider authorized capabilities.",
+      },
+    ],
+  });
+
+  let authorityIdentity = params.authorityIdentity;
+  if (authorityMode !== previousAuthority && !authorityIdentity) {
+    authorityIdentity = await loadAdminIdentity(params);
+    if (!authorityIdentity) {
+      return undefined;
+    }
+  }
+
+  let hostedChanged = false;
+  let authorityChanged = false;
+  let incomingChanged = false;
+  let rolledBack = false;
+  const transaction: VoiceAiSetupTransaction = {
+    async rollback() {
+      if (rolledBack) return;
+      rolledBack = true;
+      const failures: string[] = [];
+      if (incomingChanged) {
+        try {
+          await (params.identity as any).setIncomingCallAction(
+            incomingCallActionValues(previousIncoming),
+          );
+        } catch (error) {
+          failures.push(`incoming-call action (${messageFromError(error)})`);
+        }
+      }
+      if (authorityChanged && authorityIdentity) {
+        try {
+          await (authorityIdentity as any).setHostedAgentAuthorityMode({
+            authorityMode: previousAuthority,
+          });
+        } catch (error) {
+          failures.push(`authority mode (${messageFromError(error)})`);
+        }
+      }
+      if (hostedChanged) {
+        try {
+          await (params.identity as any).setHostedAgentConfig(
+            hostedAgentConfigValues(previous),
+          );
+        } catch (error) {
+          failures.push(`Voice AI config (${messageFromError(error)})`);
+        }
+      }
+      if (failures.length > 0) {
+        console.log("  Could not fully restore the prior phone-call configuration:");
+        for (const failure of failures) console.log(`    ${failure}`);
+      }
+    },
+  };
+
+  try {
+    // Voice/model/instructions remain server defaults; OpenClaw owns only the
+    // stack choice and authority selection.
+    hostedChanged = true;
+    await (params.identity as any).setHostedAgentConfig({});
+    if (authorityMode !== previousAuthority) {
+      authorityChanged = true;
+      await (authorityIdentity as any).setHostedAgentAuthorityMode({
+        authorityMode:
+          authorityMode === "yolo"
+            ? "yolo"
+            : "contact_scoped",
+      });
+    }
+    incomingChanged = true;
+    await (params.identity as any).setIncomingCallAction({
+      incomingCallAction: "hosted_agent",
+      clientWebsocketUrl: null,
+      incomingCallWebhookUrl: null,
+    });
+  } catch (error) {
+    console.log(`  Inkbox Voice AI configuration failed: ${messageFromError(error)}`);
+    await transaction.rollback();
+    console.log("  The previous local voice-stack selection remains active.");
+    return undefined;
+  }
+  return { authorityMode, authorityIdentity, transaction };
+}
+
+async function configurePhoneVoiceStack(params: {
+  currentConfig: unknown;
+  existingAccount: { config?: { voiceRealtime?: unknown; voiceStack?: unknown } };
+  env: NodeJS.ProcessEnv;
+  prompter: Prompter;
+  validate: OpenAiRealtimeValidator;
+  identity: AgentIdentity;
+  identityHandle: string;
+  authorityIdentity?: AgentIdentity;
+  baseUrl?: string;
+}): Promise<{
+  stack: PhoneVoiceStack;
+  realtime: WizardVoiceRealtimeConfig;
+  authorityMode?: VoiceAiAuthorityMode;
+  authorityIdentity?: AgentIdentity;
+  voiceAiTransaction?: VoiceAiSetupTransaction;
+}> {
+  const configuredStack = params.existingAccount.config?.voiceStack;
+  let initialValue: PhoneVoiceStack =
+    configuredStack === "inkbox_voice_ai" ||
+    configuredStack === "openai_realtime" ||
+    configuredStack === "inkbox_tts_stt"
+      ? configuredStack
+      : params.existingAccount.config?.voiceRealtime &&
+          isRecord(params.existingAccount.config.voiceRealtime) &&
+          params.existingAccount.config.voiceRealtime.enabled === true
+        ? "openai_realtime"
+        : "inkbox_tts_stt";
+  let authorityIdentity = params.authorityIdentity;
+
+  for (;;) {
+    console.log("\nPhone call voice stack");
+    const stack = await selectOption({
+      prompter: params.prompter,
+      message: "Choose how this agent should handle phone calls",
+      options: PHONE_VOICE_STACK_OPTIONS,
+      initialValue,
+    });
+    initialValue = stack;
+    if (stack === "inkbox_tts_stt") {
+      return {
+        stack,
+        realtime: disabledVoiceRealtimeConfig(
+          params.existingAccount.config?.voiceRealtime,
+        ),
+        authorityIdentity,
+      };
+    }
+    if (stack === "openai_realtime") {
+      const realtime = await promptForRealtimeStackConfig(params);
+      if (realtime) {
+        return { stack, realtime, authorityIdentity };
+      }
+      continue;
+    }
+    const configured = await configureVoiceAi({
+      identity: params.identity,
+      identityHandle: params.identityHandle,
+      authorityIdentity,
+      baseUrl: params.baseUrl,
+      prompter: params.prompter,
+    });
+    if (configured) {
+      authorityIdentity = configured.authorityIdentity;
+      console.log("  Inkbox Voice AI is configured for phone calls.");
+      console.log("  OpenClaw will be notified when each call ends.");
+      return {
+        stack,
+        realtime: disabledVoiceRealtimeConfig(
+          params.existingAccount.config?.voiceRealtime,
+        ),
+        authorityMode: configured.authorityMode,
+        authorityIdentity,
+        voiceAiTransaction: configured.transaction,
+      };
+    }
+  }
+}
+
+function hostFromPublicHost(publicHost: string | null | undefined): string | undefined {
+  const trimmed = publicHost?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+  try {
+    return new URL(trimmed.includes("://") ? trimmed : `https://${trimmed}`).host;
+  } catch {
+    return undefined;
+  }
+}
+
+function deriveTunnelName(identity: AgentIdentity, identityHandle: string): string | undefined {
+  const explicitName =
+    typeof (identity.tunnel as any)?.name === "string"
+      ? (identity.tunnel as any).name.trim()
+      : "";
+  if (explicitName) {
+    return explicitName;
+  }
+  const host = hostFromPublicHost(identity.tunnel?.publicHost);
+  const suffix = ".inkboxwire.com";
+  if (host?.endsWith(suffix)) {
+    const name = host.slice(0, -suffix.length);
+    return name || undefined;
+  }
+  return identityHandle;
+}
+
+function identityTunnelBaseUrl(identity: AgentIdentity, identityHandle: string): string | undefined {
+  const host = hostFromPublicHost(identity.tunnel?.publicHost);
+  if (host) {
+    return `https://${host}`;
+  }
+  const tunnelName = deriveTunnelName(identity, identityHandle);
+  return tunnelName ? `https://${tunnelName}.inkboxwire.com` : undefined;
+}
+
+async function configureIdentityGatewayDelivery(params: {
+  client: Inkbox;
+  identity: AgentIdentity;
+  identityHandle: string;
+  // iMessage enablement threaded separately — the local identity object may
+  // be stale right after the wizard flips the flag.
+  imessageEnabled?: boolean;
+  voiceStack?: PhoneVoiceStack;
+}): Promise<{ webhookUrl?: string; callWebsocketUrl?: string; tunnelName?: string }> {
+  const baseUrl = identityTunnelBaseUrl(params.identity, params.identityHandle);
+  if (!baseUrl) {
+    console.log(
+      "Skipping automatic inbound delivery setup because this identity has no Inkbox tunnel.",
+    );
+    return {};
+  }
+
+  const webhookUrl = publicUrl(baseUrl, inkboxWebhookPath(DEFAULT_ACCOUNT_ID));
+  const callWebsocketUrl = websocketUrl(
+    baseUrl,
+    inkboxCallWebsocketPath(DEFAULT_ACCOUNT_ID),
+  );
+
+  const mailboxId = params.identity.mailbox?.id;
+  if (mailboxId) {
+    const mailSub = await reconcileWebhookSubscription(params.client, {
+      mailboxId,
+      url: webhookUrl,
+      eventTypes: MAIL_EVENT_TYPES,
+    });
+    if (mailSub) {
+      console.log(`Mailbox events subscribed at ${webhookUrl}.`);
+    } else {
+      console.log(
+        `Mailbox subscription was not created — see the warning above. Inbound email will not arrive at ${webhookUrl} until that is resolved.`,
+      );
+    }
+  } else if (params.identity.mailbox?.emailAddress) {
+    console.log(
+      `Mailbox ${params.identity.mailbox.emailAddress} has no id yet; skipping mail subscription.`,
+    );
+  }
+
+  if (params.identity.phoneNumber?.id) {
+    const textSub = await reconcileWebhookSubscription(params.client, {
+      phoneNumberId: params.identity.phoneNumber.id,
+      url: webhookUrl,
+      eventTypes: TEXT_EVENT_TYPES,
+    });
+    if (textSub) {
+      console.log(`Phone text events subscribed at ${webhookUrl}.`);
+    } else {
+      console.log("Phone text subscription was not created — see the warning above.");
+    }
+  }
+
+  // Inbound-call config is identity-scoped: one row covers the dedicated
+  // number AND the shared iMessage line. Register whenever calls can arrive
+  // on either.
+  const imessageEnabled = params.imessageEnabled || Boolean(params.identity.imessageEnabled);
+  const canReceiveCalls = Boolean(params.identity.phoneNumber || imessageEnabled);
+  // Voice AI routing was applied transactionally with hosted config and
+  // authority. Local stacks are configured here once their WebSocket is known.
+  if (canReceiveCalls && params.voiceStack !== "inkbox_voice_ai") {
+    const callConfig = {
+      incomingCallAction: "auto_accept",
+      clientWebsocketUrl: callWebsocketUrl,
+      incomingCallWebhookUrl: null,
+    };
+    if (typeof (params.identity as any).setIncomingCallAction === "function") {
+      await (params.identity as any).setIncomingCallAction(callConfig);
+    } else if (params.identity.phoneNumber?.id) {
+      // Legacy SDKs only expose the number-scoped shim, which cannot
+      // configure a shared-iMessage-only identity.
+      await params.client.phoneNumbers.update(params.identity.phoneNumber.id, callConfig);
+    }
+    console.log(`Incoming calls bridge to ${callWebsocketUrl}.`);
+  } else if (canReceiveCalls) {
+    console.log("Incoming calls use Inkbox Voice AI.");
+  }
+
+  if (params.identity.id && canReceiveCalls) {
+    const callSub = await reconcileWebhookSubscription(params.client, {
+      agentIdentityId: params.identity.id,
+      url: webhookUrl,
+      eventTypes: CALL_EVENT_TYPES,
+    });
+    if (callSub) {
+      console.log(`Call lifecycle events subscribed at ${webhookUrl}.`);
+    } else {
+      console.log("Call lifecycle subscription was not created — see the warning above.");
+    }
+  }
+
+  // iMessage events are owned by the agent identity, not a phone number —
+  // the channel rides shared Inkbox-managed lines. Only valid while the
+  // identity is iMessage-enabled.
+  if (imessageEnabled && params.identity.id) {
+    const imessageSub = await reconcileWebhookSubscription(params.client, {
+      agentIdentityId: params.identity.id,
+      url: webhookUrl,
+      eventTypes: IMESSAGE_EVENT_TYPES,
+    });
+    if (imessageSub) {
+      console.log(`iMessage events subscribed at ${webhookUrl}.`);
+    } else {
+      console.log(
+        `iMessage subscription was not created — see the warning above. Inbound iMessage will not arrive at ${webhookUrl} until that is resolved.`,
+      );
+    }
+  }
+
+  try { await reconcileWebhookSubscription(params.client, { agentIdentityId: params.identity.id, url: webhookUrl, eventTypes: WHATSAPP_EVENT_TYPES }); }
+  catch { console.log("WhatsApp notifications could not be registered yet; other channels remain configured."); }
+  const tunnelName = deriveTunnelName(params.identity, params.identityHandle);
+  return {
+    webhookUrl,
+    callWebsocketUrl,
+    ...(tunnelName && tunnelName !== params.identityHandle ? { tunnelName } : {}),
+  };
+}
+
+function printInkboxAuthorizationInfo(): void {
+  console.log("\nInkbox authorization lives server-side via contact rules:");
+  console.log("  https://console.inkbox.ai -> Mailboxes / Phone Numbers -> Contact Rules");
+  console.log(
+    "Anyone Inkbox lets through reaches the agent; this wizard does not create a second local inbound allowlist.",
+  );
+}
+
+function printAgentSummary(identity: AgentIdentity): void {
+  console.log("\nInkbox configured\n");
+  console.log(`  Handle:  ${identity.agentHandle}`);
+  const email = identity.mailbox?.emailAddress ?? identity.emailAddress;
+  console.log(`  Mailbox: ${email ?? "(none - set up later in the Inkbox console)"}`);
+  if (identity.phoneNumber) {
+    const smsStatus = identity.phoneNumber.smsStatus ? `; SMS: ${identity.phoneNumber.smsStatus}` : "";
+    console.log(`  Phone:   ${identity.phoneNumber.number} (${identity.phoneNumber.type}${smsStatus})`);
+    if (identity.phoneNumber.type === "local") {
+      console.log("\nSMS opt-in:");
+      console.log(`  Text START to ${identity.phoneNumber.number} from each phone this agent should text.`);
+      console.log("\n  Or just scan this with your phone camera to draft that text in one tap:");
+      const qrPayload = smsToQrPayload(identity.phoneNumber.number, "START");
+      const fallbackLink = smsDraftLink(identity.phoneNumber.number, "START");
+      if (!showQr(qrPayload)) {
+        console.log(`    (install qrcode-terminal to show a scannable QR here: ${fallbackLink})`);
+      }
+    }
+  } else {
+    console.log("  Phone:   (none - provision later in the Inkbox console)");
+  }
+  if (identity.imessageEnabled) {
+    console.log("  iMessage: enabled (people connect via the Inkbox iMessage router)");
+  }
+  console.log("\nReachability rules:");
+  console.log("  Manage who can reach this agent at https://inkbox.ai/console/contact-rules");
+  console.log("  Use mailbox and phone contact rules for email senders, domains, and phone numbers.");
+}
+
+function printProvisionedPhoneStatus(phone: { number?: string | null; smsStatus?: string | null }): void {
+  const smsStatus = phone.smsStatus?.trim().toLowerCase();
+  if (smsStatus === "ready") {
+    console.log(`Provisioned ${phone.number}. SMS is ready.`);
+    return;
+  }
+  const statusLabel = smsStatus ? ` Current SMS status: ${smsStatus}.` : "";
+  console.log(
+    `Provisioned ${phone.number}. SMS will be ready in ~10-15 min once 10DLC carrier propagation completes.${statusLabel}`,
+  );
+}
+
+// Offer to provision a dedicated phone number (SMS + voice). Runs as a
+// standalone step AFTER iMessage setup so the wizard walks channels in a
+// natural order: connect over iMessage first, then add a dedicated number.
+// A no-op when the identity already has a number.
+async function offerDedicatedNumber(
+  identity: AgentIdentity,
+  prompter: Prompter,
+): Promise<{ identity: AgentIdentity; didProvisionPhone: boolean }> {
+  console.log("\nDedicated phone number:");
+  if (identity.phoneNumber) {
+    // Say so instead of silently skipping — otherwise the step looks lost.
+    console.log(`  Already provisioned: ${identity.phoneNumber.number}`);
+    return { identity, didProvisionPhone: false };
+  }
+  console.log("  A local US number gives this agent its own line for SMS and voice.");
+  const wantPhone = await prompter.confirm("Provision a dedicated phone number now?", true);
+  if (!wantPhone) {
+    console.log("  Skipped. Re-run `openclaw inkbox setup` anytime to add a number.");
+    return { identity, didProvisionPhone: false };
+  }
+  try {
+    const phone = await identity.provisionPhoneNumber({ type: "local" });
+    printProvisionedPhoneStatus(phone);
+  } catch (error) {
+    // Graceful fallback — most rejections here are plan gating. Point at
+    // pricing and keep the wizard moving; nothing downstream needs a number.
+    console.log("  Dedicated phone numbers are available on Inkbox paid tiers —");
+    console.log("  see https://inkbox.ai/pricing for details.");
+    console.log(`  (provisioning response: ${messageFromError(error)})`);
+    return { identity, didProvisionPhone: false };
+  }
+  try {
+    return { identity: await identity.refresh(), didProvisionPhone: true };
+  } catch {
+    // Refresh is cosmetic here; the number is provisioned either way.
+    return { identity, didProvisionPhone: true };
+  }
+}
+
+async function discoverAgentIdentityHandle(
+  client: Inkbox,
+  env: NodeJS.ProcessEnv,
+  prompter: Prompter,
+): Promise<string> {
+  const fromEnv = env.INKBOX_IDENTITY?.trim();
+  if (fromEnv) {
+    return fromEnv;
+  }
+  try {
+    const identities = await client.listIdentities();
+    if (identities.length === 1) {
+      return identities[0].agentHandle;
+    }
+    if (identities.length > 1) {
+      console.log("This key can see multiple identities:");
+      identities.forEach((i, idx) => console.log(`  ${idx + 1}. ${i.agentHandle}`));
+      const pick = await prompter.ask("Pick identity (1..N)", "1");
+      const idx = parseInt(pick, 10);
+      if (!Number.isNaN(idx) && idx >= 1 && idx <= identities.length) {
+        return identities[idx - 1].agentHandle;
+      }
+    }
+  } catch {
+    // Some key states may not allow listIdentities; fall back to prompt.
+  }
+  return prompter.ask("Identity handle this key is bound to (lowercase, 3-63 chars)");
+}
+
+async function waitForSmsStart(params: {
+  identity: AgentIdentity;
+}): Promise<boolean> {
+  if (params.identity.phoneNumber?.type !== "local") {
+    return true;
+  }
+  // Poll indefinitely for the START opt-in (no timeout). Ctrl+C skips the wait
+  // without aborting setup — the phone is already provisioned, so the agent can
+  // send the moment a recipient replies START.
+  let skipped = false;
+  const onSigint = (): void => {
+    skipped = true;
+  };
+  process.on("SIGINT", onSigint);
+  try {
+    while (!skipped) {
+      const texts = await params.identity.listTexts({ limit: 25 });
+      const found = texts.some(
+        (text) => text.direction === "inbound" && isStartText(text.text),
+      );
+      if (found) {
+        console.log("Received START opt-in text.");
+        return true;
+      }
+      await sleep(SMS_OPT_IN_POLL_MS);
+    }
+  } finally {
+    process.off("SIGINT", onSigint);
+  }
+  // Skipped via Ctrl+C — non-fatal, so continue the rest of setup.
+  console.log(
+    `Skipped the START wait. Text START to ${params.identity.phoneNumber.number} whenever you're ready — the agent can send once a recipient opts in. Continuing setup.`,
+  );
+  return false;
+}
+
+// Offer to enable iMessage for the agent and walk through connecting an
+// iPhone. Enablement lives on the Inkbox identity, not local config — there
+// is no number to provision; people connect through the Inkbox iMessage
+// router. Returns the (possibly refreshed) identity plus whether iMessage
+// ended up enabled, so callers can gate iMessage-dependent steps even when
+// the local identity object is stale.
+async function configureIMessage(params: {
+  client: Inkbox;
+  identity: AgentIdentity;
+  identityHandle: string;
+  prompter: Prompter;
+}): Promise<{ identity: AgentIdentity; enabled: boolean }> {
+  let identity = params.identity;
+  // Detect the SDK's iMessage surface before prompting so setups running
+  // against an older @inkbox/sdk skip the step instead of crashing.
+  const imessages = (params.client as any).imessages;
+  if (
+    typeof imessages?.getTriageNumber !== "function" ||
+    typeof (identity as any).update !== "function"
+  ) {
+    console.log("iMessage requires @inkbox/sdk >= 0.4.7; skipping iMessage setup.");
+    return { identity, enabled: Boolean(identity.imessageEnabled) };
+  }
+
+  console.log("\niMessage:");
+  console.log("  Inkbox can make this agent reachable over iMessage from your iPhone.");
+  console.log("  No number to provision — you connect through the Inkbox iMessage router.");
+  console.log("  Once connected, the agent can also make and take voice calls with you");
+  console.log("  over that same shared iMessage line.");
+  if (identity.imessageEnabled) {
+    console.log("  iMessage is already enabled for this agent.");
+  } else {
+    const enable = await params.prompter.confirm("Enable iMessage for this agent?", true);
+    if (!enable) {
+      console.log("  Skipped. Re-run `openclaw inkbox setup` anytime to enable iMessage.");
+      return { identity, enabled: false };
+    }
+    try {
+      await identity.update({ imessageEnabled: true });
+    } catch (error) {
+      console.log(`  Could not enable iMessage: ${messageFromError(error)}`);
+      console.log("  You can enable it later from the Inkbox Console and re-run setup.");
+      return { identity, enabled: false };
+    }
+    console.log("  iMessage enabled for this agent.");
+    try {
+      // Re-fetch so the local object reflects the new flag (the SDK gates
+      // its iMessage helpers on it).
+      identity = await params.client.getIdentity(params.identityHandle);
+    } catch (error) {
+      console.log(`  Could not refresh the identity after enabling: ${messageFromError(error)}`);
+      return { identity, enabled: true };
+    }
+  }
+
+  // Surface phones already connected through the router so re-runs don't
+  // read like a first-time setup, and default the walkthrough off when a
+  // connection already exists (connecting another phone is the rare case).
+  let connected: Awaited<ReturnType<AgentIdentity["listIMessageAssignments"]>> = [];
+  try {
+    connected = await identity.listIMessageAssignments({ limit: 5 });
+  } catch {
+    connected = [];
+  }
+  if (connected.length) {
+    console.log(
+      `  Already connected: ${connected.map((entry) => entry.remoteNumber).join(", ")}`,
+    );
+  }
+  const wantConnect = await params.prompter.confirm(
+    connected.length
+      ? "Connect another iPhone to this agent now?"
+      : "Connect your iPhone to this agent now?",
+    connected.length === 0,
+  );
+  if (!wantConnect) {
+    console.log("  You can connect anytime — re-run `openclaw inkbox setup` for the walkthrough.");
+    return { identity, enabled: true };
+  }
+  await waitForIMessageFirstMessage({
+    client: params.client,
+    identity,
+    identityHandle: params.identityHandle,
+  });
+  return { identity, enabled: true };
+}
+
+// Walk the user through the iMessage connect flow, wait for their first
+// inbound iMessage, then greet them back in that conversation. Timing out is
+// non-fatal — the connection can be finished later by re-running setup.
+async function waitForIMessageFirstMessage(params: {
+  client: Inkbox;
+  identity: AgentIdentity;
+  identityHandle: string;
+}): Promise<void> {
+  let triage: { number: string; connectCommand: string; smsLink?: string };
+  try {
+    triage = await (params.client as any).imessages.getTriageNumber();
+  } catch (error) {
+    console.log(`Could not fetch the iMessage router number: ${messageFromError(error)}`);
+    console.log("Re-run `openclaw inkbox setup` later to finish connecting.");
+    return;
+  }
+  const connectCommand =
+    triage.connectCommand && !triage.connectCommand.includes("your-handle")
+      ? triage.connectCommand
+      : `connect @${params.identityHandle}`;
+
+  console.log("\nFrom your iPhone, in the Messages app:");
+  console.log(`  1. Text "${connectCommand}" to ${triage.number}`);
+  console.log("  2. Inkbox texts you back from the number now assigned to this agent.");
+  console.log('  3. Send any first message (e.g. "hi") in that NEW thread.');
+  console.log("The agent can only message you after you message it first.");
+  console.log("\nOr just scan this with your iPhone camera to do step 1 in one tap:");
+  const fallbackLink =
+    triage.smsLink && !triage.smsLink.includes("your-handle")
+      ? triage.smsLink
+      : smsDraftLink(triage.number, connectCommand);
+  const qrPayload = smsToQrPayload(triage.number, connectCommand);
+  if (!showQr(qrPayload)) {
+    console.log(`  (install qrcode-terminal to show a scannable QR here: ${fallbackLink})`);
+  }
+  console.log("\nWaiting up to 5 minutes for your first iMessage...");
+
+  const startedAt = Date.now();
+  let match: Awaited<ReturnType<AgentIdentity["listIMessages"]>>[number] | undefined;
+  while (Date.now() - startedAt < IMESSAGE_CONNECT_WAIT_TIMEOUT_MS) {
+    let messages: Awaited<ReturnType<AgentIdentity["listIMessages"]>> = [];
+    try {
+      messages = await params.identity.listIMessages({ limit: 10 });
+    } catch {
+      messages = [];
+    }
+    match = messages.find((message) => {
+      if (message.direction !== "inbound") {
+        return false;
+      }
+      // Ignore traffic from a connection that predates this run; accept
+      // rows without a parseable timestamp rather than stalling the poll.
+      const createdAt =
+        message.createdAt instanceof Date ? message.createdAt.getTime() : undefined;
+      return createdAt === undefined || createdAt >= startedAt;
+    });
+    if (match) {
+      break;
+    }
+    await sleep(IMESSAGE_CONNECT_POLL_MS);
+  }
+  if (!match) {
+    console.log(
+      "Did not see a first iMessage before the wait timed out. Connect and message the agent, then re-run setup if you want the welcome walkthrough.",
+    );
+    return;
+  }
+
+  console.log(`Got it. First iMessage received from ${match.remoteNumber || "your phone"}.`);
+  const welcome =
+    `You're connected! This is your iMessage channel to your OpenClaw agent ` +
+    `@${params.identityHandle}. Anything you send here goes straight to the agent, ` +
+    `and its replies will show up right in this thread.`;
+  try {
+    await params.identity.sendIMessage({
+      conversationId: match.conversationId,
+      text: welcome,
+    });
+    console.log("Sent a welcome message back on that thread.");
+  } catch (error) {
+    console.log(`Could not send the welcome message: ${messageFromError(error)}`);
+  }
+  try {
+    // Clear the unread flag the walkthrough message left behind.
+    await params.identity.markIMessageConversationRead(match.conversationId);
+  } catch {
+    // Best-effort; unread state is cosmetic here.
+  }
+  // Setup's closing step brings the gateway up, so point at that rather than
+  // handing out a restart instruction mid-flow.
+  console.log("Setup finishes by bringing the gateway up so it picks up this connection.");
+}
+
+async function askRequiredVerificationCode(prompter: Prompter): Promise<string> {
+  for (;;) {
+    const code = normalizeOptional(await prompter.ask("Verification code from email"));
+    if (code) {
+      return code;
+    }
+    console.log("Verification code is required to complete Inkbox setup.");
+  }
+}
+
+async function runSelfSignup(params: {
+  env: NodeJS.ProcessEnv;
+  prompter: Prompter;
+}): Promise<{ apiKey: string; identityHandle: string }> {
+  const humanEmail = await params.prompter.ask("Your email address for Inkbox verification");
+  const agentHandle = normalizeOptional(
+    await params.prompter.ask("Requested agent handle (optional)"),
+  );
+  const displayName = normalizeOptional(
+    await params.prompter.ask("Agent display name (optional)"),
+  );
+  try {
+    const signup = await Inkbox.signup(
+      {
+        humanEmail,
+        noteToHuman: SELF_SIGNUP_VERIFICATION_NOTE,
+        harness: "openclaw",
+        ...(agentHandle ? { agentHandle } : {}),
+        ...(displayName ? { displayName } : {}),
+      },
+      inkboxBaseUrlOptions(params.env.INKBOX_BASE_URL),
+    );
+    console.log(`Created Inkbox agent ${signup.agentHandle} (${signup.emailAddress}).`);
+    console.log(signup.message);
+    const code = await askRequiredVerificationCode(params.prompter);
+    await Inkbox.verifySignup(
+      signup.apiKey,
+      { verificationCode: code },
+      inkboxBaseUrlOptions(params.env.INKBOX_BASE_URL),
+    );
+    console.log("Signup verified.");
+    return { apiKey: signup.apiKey, identityHandle: signup.agentHandle };
+  } catch (error) {
+    if (error instanceof InkboxAPIError && (error.statusCode === 409 || error.statusCode === 422)) {
+      throw new Error(
+        `Self-signup failed (${error.statusCode}). The handle/email may be unavailable or invalid: ${typeof error.detail === "string" ? error.detail : JSON.stringify(error.detail)}`,
+      );
+    }
+    throw error;
+  }
+}
+
+// Three-branch wizard:
+//   A. No apiKey yet  → self-signup or prompt for an existing key
+//   B. apiKey + admin → pick an existing identity or create one, then mint
+//                       an agent-scoped key bound to it; rest of flow runs on
+//                       the agent-scoped key
+//   C. apiKey + agent → confirm identity, offer phone provision if missing,
+//                       (re)generate signing key, persist state
+export async function runSetupWizard(opts: WizardOptions): Promise<WizardResult> {
+  const env = opts.env ?? process.env;
+  const prompter = opts.prompter;
+  const validateOpenAiRealtime =
+    opts.validateOpenAiRealtimeApiKey ?? validateOpenAiRealtimeApiKey;
+
+  console.log("Inkbox plugin setup\n");
+
+  const existingAccount = resolveInkboxAccount({
+    cfg: opts.currentConfig,
+    env,
+  });
+  const existingApiKey = existingAccount.apiKey?.trim();
+  const existingIdentity = existingAccount.identity?.trim();
+  const existingSigningKey = existingAccount.signingKey?.trim();
+  const existingBaseUrl = existingAccount.baseUrl?.trim();
+  let reconfigureExisting = false;
+  if (existingApiKey && existingIdentity) {
+    const reconfigure = await prompter.confirm(
+      `Inkbox is already configured for identity ${existingIdentity}. Reconfigure?`,
+      false,
+    );
+    if (!reconfigure) {
+      return {
+        ok: true,
+        message: "existing config kept",
+        persisted: Boolean(existingAccount.configured),
+        config: {
+          apiKey: existingApiKey,
+          identity: existingIdentity,
+          groupReplyMode: existingAccount.config.groupReplyMode,
+          companionResponseMode: existingAccount.config.companionResponseMode,
+          ...(existingSigningKey ? { signingKey: existingSigningKey } : {}),
+          ...(existingBaseUrl ? { baseUrl: existingBaseUrl } : {}),
+          ...(existingAccount.config.voiceRealtime
+            ? { voiceRealtime: existingAccount.config.voiceRealtime as WizardVoiceRealtimeConfig }
+            : {}),
+          ...(existingAccount.config.voiceStack
+            ? { voiceStack: existingAccount.config.voiceStack }
+            : {}),
+          ...(existingAccount.config.voiceAiAuthorityMode
+            ? { voiceAiAuthorityMode: existingAccount.config.voiceAiAuthorityMode }
+            : {}),
+          ...(existingAccount.config.voicemailDetection
+            ? { voicemailDetection: existingAccount.config.voicemailDetection }
+            : {}),
+        },
+      };
+    }
+    reconfigureExisting = true;
+  }
+
+  // Step 1 — read or prompt for API key. If the operator chose to
+  // reconfigure, run the full setup flow again instead of silently reusing
+  // the profile's old key/identity/signing key.
+  let apiKey = reconfigureExisting ? undefined : existingApiKey;
+  let signupIdentityHandle: string | undefined;
+  if (!apiKey) {
+    console.log(
+      existingApiKey ? "Switching to a different Inkbox API key." : "No INKBOX_API_KEY in env.",
+    );
+    const hasApiKey = await prompter.confirm("Do you already have an Inkbox API key?", true);
+    if (!hasApiKey) {
+      const signup = await runSelfSignup({ env, prompter });
+      apiKey = signup.apiKey;
+      signupIdentityHandle = signup.identityHandle;
+    } else {
+      apiKey = await prompter.ask("Paste your Inkbox API key (starts with ApiKey_)");
+    }
+    // No client-side prefix check: whoami() below rejects anything that isn't an
+    // API key (info.authType !== "api_key"), so a JWT or other credential is
+    // caught server-side — matching the CC/Codex/Hermes wizards.
+    if (!apiKey) {
+      return { ok: false, message: "No API key provided." };
+    }
+  }
+
+  const baseUrl = reconfigureExisting ? env.INKBOX_BASE_URL : (existingBaseUrl ?? env.INKBOX_BASE_URL);
+  const client = new Inkbox(inkboxClientOptions(apiKey, baseUrl));
+
+  // Step 2 — whoami to discover scope.
+  let info;
+  try {
+    info = await client.whoami();
+  } catch (err) {
+    return {
+      ok: false,
+      message: `whoami failed: ${err instanceof Error ? err.message : String(err)}. Is the API key correct?`,
+    };
+  }
+  if (info.authType !== "api_key") {
+    return {
+      ok: false,
+      message: `Unsupported auth type for the wizard: ${info.authType}. Use an API key.`,
+    };
+  }
+  const subtype = info.authSubtype;
+  console.log(`Authenticated. org=${info.organizationId} subtype=${subtype}\n`);
+
+  // Step 3 — branch on subtype.
+  let identityHandle: string;
+  let agentApiKey: string = apiKey;
+  let identity: AgentIdentity | undefined;
+  let authorityIdentity: AgentIdentity | undefined;
+  let didProvisionPhone = false;
+  let createdIdentity = Boolean(signupIdentityHandle);
+
+  if (subtype === AUTH_SUBTYPE_API_KEY_ADMIN_SCOPED) {
+    // Branch B — admin scoped.
+    console.log("Admin-scoped key detected. The wizard will create or select an identity, then mint an agent-scoped key for the plugin to use.\n");
+    const identities = await client.listIdentities();
+    const identityDetails: Array<AgentIdentity | undefined> = [];
+    if (identities.length > 0) {
+      console.log(`Found ${identities.length} identity(s). Fetching mailbox and phone details...`);
+      for (const candidate of identities) {
+        try {
+          identityDetails.push(await client.getIdentity(candidate.agentHandle));
+        } catch (error) {
+          console.log(`  ${candidate.agentHandle}: details unavailable (${messageFromError(error)})`);
+          identityDetails.push(undefined);
+        }
+      }
+      console.log("Existing identities:");
+      identities.forEach((i, idx) =>
+        console.log(`  ${idx + 1}. ${summarizeIdentity(identityDetails[idx] ?? i)}`),
+      );
+      console.log("  N. Create a new identity");
+      const pick = await prompter.ask("Pick (1..N)", "N");
+      const idx = parseInt(pick, 10);
+      if (!Number.isNaN(idx) && idx >= 1 && idx <= identities.length) {
+        identityHandle = identities[idx - 1].agentHandle;
+        identity = identityDetails[idx - 1] ?? (await client.getIdentity(identityHandle));
+      } else {
+        identityHandle = await prompter.ask("New identity handle (lowercase, 3-63 chars, alphanum+dash)");
+        const displayName = normalizeOptional(await prompter.ask("Display name (optional)"));
+        // Phone provisioning is decoupled from creation: the wizard offers a
+        // dedicated number as a standalone step after iMessage setup.
+        identity = await client.createIdentity(identityHandle, {
+          ...(displayName ? { displayName } : {}),
+        });
+        createdIdentity = true;
+        console.log(`Created identity ${identityHandle}.`);
+      }
+    } else {
+      identityHandle = await prompter.ask("New identity handle (lowercase, 3-63 chars, alphanum+dash)");
+      const displayName = normalizeOptional(await prompter.ask("Display name (optional)"));
+      // Phone provisioning is decoupled from creation: the wizard offers a
+      // dedicated number as a standalone step after iMessage setup.
+      identity = await client.createIdentity(identityHandle, {
+        ...(displayName ? { displayName } : {}),
+      });
+      createdIdentity = true;
+      console.log(`Created identity ${identityHandle}.`);
+    }
+    // Mint an agent-scoped key bound to this identity. The plugin should use
+    // this going forward, not the admin key the user pasted.
+    const identityRecord = identity ?? (await client.getIdentity(identityHandle));
+    authorityIdentity = identityRecord;
+    const newKey = await (client as any).apiKeys.create({
+      scopedIdentityId: identityRecord.id,
+      label: `openclaw-plugin-${identityHandle}`,
+    });
+    agentApiKey = newKey.apiKey ?? newKey.api_key;
+    console.log("Minted an agent-scoped key for this identity.\n");
+  } else if (
+    subtype === AUTH_SUBTYPE_API_KEY_AGENT_SCOPED_CLAIMED ||
+    subtype === AUTH_SUBTYPE_API_KEY_AGENT_SCOPED_UNCLAIMED
+  ) {
+    // Branch C — agent scoped (preferred).
+    identityHandle =
+      signupIdentityHandle ?? (await discoverAgentIdentityHandle(client, env, prompter));
+  } else {
+    return {
+      ok: false,
+      message: `Unsupported auth subtype: ${subtype}. Mint an agent-scoped or admin-scoped key.`,
+    };
+  }
+
+  // Re-construct a client with the (possibly new) agent-scoped key so the
+  // identity resolves under the right access.
+  const agentClient = subtype === AUTH_SUBTYPE_API_KEY_ADMIN_SCOPED
+    ? new Inkbox(inkboxClientOptions(agentApiKey, baseUrl))
+    : client;
+  identity = await agentClient.getIdentity(identityHandle);
+  await configureAgentAvatar({
+    baseUrl,
+    apiKey: agentApiKey,
+    identityHandle,
+    isSignup: createdIdentity,
+    prompter,
+  });
+
+  // Step 4 — channels, in the order operators should think about them:
+  // connect over iMessage FIRST (no number to provision — you reach the agent
+  // through the shared Inkbox iMessage router), THEN offer a dedicated phone
+  // number for SMS + voice. Provisioning is decoupled from identity creation
+  // so this ordering holds across every entry path (signup, admin,
+  // agent-scoped). Runs before delivery setup (step 6) so the identity-owned
+  // imessage.* subscription is created when enabled.
+  const imessage = await configureIMessage({
+    client: agentClient,
+    identity,
+    identityHandle,
+    prompter,
+  });
+  identity = imessage.identity;
+  const imessageEnabled = imessage.enabled;
+
+  const provisioned = await offerDedicatedNumber(identity, prompter);
+  identity = provisioned.identity;
+  didProvisionPhone = didProvisionPhone || provisioned.didProvisionPhone;
+
+  if (didProvisionPhone && identity.phoneNumber) {
+    console.log(
+      `Text START to ${identity.phoneNumber.number}. Waiting for the opt-in (Ctrl+C to skip)...`,
+    );
+    // Non-fatal: setup continues whether the START opt-in arrives or is skipped.
+    await waitForSmsStart({ identity });
+  }
+
+  // One explicit selection controls every inbound and outbound call path.
+  if (identity.phoneNumber || imessageEnabled) {
+    const pauseMessage = "Press Enter to continue and set up phone call handling";
+    if (prompter.pause) {
+      await prompter.pause(pauseMessage);
+    } else {
+      await prompter.ask(pauseMessage);
+    }
+  }
+  const phoneVoice =
+    identity.phoneNumber || imessageEnabled
+      ? await configurePhoneVoiceStack({
+          currentConfig: opts.currentConfig,
+          existingAccount,
+          env,
+          prompter,
+          validate: validateOpenAiRealtime,
+          identity,
+          identityHandle,
+          authorityIdentity,
+          baseUrl,
+        })
+      : undefined;
+  authorityIdentity = phoneVoice?.authorityIdentity ?? authorityIdentity;
+
+  const rollbackVoiceAiOnFailure = async <T>(work: () => Promise<T>): Promise<T> => {
+    try {
+      return await work();
+    } catch (error) {
+      await phoneVoice?.voiceAiTransaction?.rollback();
+      throw error;
+    }
+  };
+
+  printInkboxAuthorizationInfo();
+
+  // Step 5 — signing key for inbound webhooks.
+  let signingKey = normalizeOptional((reconfigureExisting ? undefined : existingSigningKey) ?? "");
+  if (signingKey) {
+    const keepExisting = await rollbackVoiceAiOnFailure(() =>
+      prompter.confirm("Use existing webhook signing key?", true),
+    );
+    if (!keepExisting) signingKey = undefined;
+  }
+  if (!signingKey) {
+    const pasteExisting = await rollbackVoiceAiOnFailure(() =>
+      prompter.confirm(
+        "Do you already have a webhook signing key to keep using?",
+        false,
+      ),
+    );
+    if (pasteExisting) {
+      signingKey = normalizeOptional(
+        await rollbackVoiceAiOnFailure(() => prompter.ask("Paste webhook signing key")),
+      );
+    }
+  }
+  if (!signingKey) {
+    const wantSigningKey = await rollbackVoiceAiOnFailure(() =>
+      prompter.confirm(
+        "Generate/rotate the org webhook signing key now? This is required for inbound email/SMS/calls and replaces the previous org-level signing secret.",
+        true,
+      ),
+    );
+    if (wantSigningKey) {
+      const sk = await rollbackVoiceAiOnFailure(() => agentClient.createSigningKey());
+      signingKey = (sk as any).signingKey ?? (sk as any).key;
+      if (!signingKey) {
+        console.log("⚠️  Signing key call succeeded but the response shape was unexpected — fall back to creating one in the Console.");
+      } else {
+        console.log("Generated webhook signing key.\n");
+      }
+    }
+  }
+  if (!signingKey) {
+    await phoneVoice?.voiceAiTransaction?.rollback();
+    return {
+      ok: false,
+      message:
+        "Webhook signing key is required for inbound email/SMS/calls. Re-run setup and paste or generate a signing key.",
+    };
+  }
+
+  // Step 6 — point the identity's mailbox and phone at this OpenClaw gateway.
+  // This is intentionally done for existing identities too; a pre-existing
+  // phone number must be routed exactly like a newly provisioned number.
+  let tunnelName: string | undefined;
+  try {
+    const delivery = await configureIdentityGatewayDelivery({
+      client: agentClient,
+      identity,
+      identityHandle,
+      imessageEnabled,
+      voiceStack: phoneVoice?.stack,
+    });
+    tunnelName = delivery.tunnelName;
+  } catch (error) {
+    await phoneVoice?.voiceAiTransaction?.rollback();
+    return {
+      ok: false,
+      message: `Inkbox delivery setup failed: ${messageFromError(error)}`,
+    };
+  }
+
+  // Step 7 — persist non-secret state for future doctor/CLI runs.
+  identity = await rollbackVoiceAiOnFailure(() => identity!.refresh());
+  await rollbackVoiceAiOnFailure(() =>
+    writeIdentityState({
+      identityHandle,
+      emailAddress: identity.mailbox?.emailAddress ?? null,
+      phoneNumber: identity.phoneNumber?.number ?? null,
+      imessageEnabled: Boolean(identity.imessageEnabled),
+      tunnelPublicHost: identity.tunnel?.publicHost ?? null,
+      savedAt: new Date().toISOString(),
+    }),
+  );
+  printAgentSummary(identity);
+
+  // Step 8 — persist the channel config in the active OpenClaw profile when
+  // the CLI provided a config persister. Tests and direct library callers can
+  // omit it and still receive the snippet.
+  const groupReplyMode = await selectOption({ prompter, message: "When should the agent reply in groups?", options: [{ value: "auto" as const, label: "Automatically, when appropriate" }, { value: "mention" as const, label: "Only when @agent or @handle is mentioned" }], initialValue: existingAccount.config.groupReplyMode ?? "auto" });
+  const companionResponseMode = await selectOption({ prompter, message: "Who can wake the agent in Companion mode?", options: [{ value: "safe" as const, label: "Safe — direct senders only" }, { value: "relaxed" as const, label: "Relaxed — direct and sponsored senders" }], initialValue: existingAccount.config.companionResponseMode ?? "safe" });
+  const slackAbort = new AbortController();
+  const cancelSlack = () => slackAbort.abort();
+  process.once("SIGINT", cancelSlack);
+  let slackEnabled: boolean;
+  try {
+    slackEnabled = await configureSlack(agentClient, identity.id, existingAccount.config.slackEnabled ?? false, {
+      prompter, signal: slackAbort.signal, note: (message) => console.log(message),
+      installation: (url, expiresAt) => { console.log(`Open this private installation link in your browser: ${url}\nExpires: ${expiresAt.toISOString()}.`); },
+    });
+  } finally { process.removeListener("SIGINT", cancelSlack); }
+  const snippet: WizardConfig = {
+    groupReplyMode, companionResponseMode, slackEnabled,
+    apiKey: agentApiKey,
+    identity: identityHandle,
+    ...(signingKey ? { signingKey } : {}),
+    ...(baseUrl ? { baseUrl } : {}),
+    ...(tunnelName ? { tunnelName } : {}),
+    ...(phoneVoice ? { voiceStack: phoneVoice.stack } : {}),
+    ...(phoneVoice?.authorityMode
+      ? { voiceAiAuthorityMode: phoneVoice.authorityMode }
+      : {}),
+    ...(phoneVoice ? { voicemailDetection: "enabled" as const } : {}),
+    ...(phoneVoice ? { voiceRealtime: phoneVoice.realtime } : {}),
+  };
+  if (opts.persistConfig) {
+    const persisted = await rollbackVoiceAiOnFailure(() =>
+      opts.persistConfig!(snippet, {
+        currentConfig: opts.currentConfig,
+        env,
+      }),
+    );
+    if (!persisted.ok) {
+      console.log("\n❌ Inkbox setup completed, but OpenClaw config was not updated.");
+      console.log(persisted.message ?? "Unknown config write error.");
+      console.log("\nManual fallback for channels.inkbox:\n");
+      console.log(JSON.stringify(snippet, null, 2));
+      await phoneVoice?.voiceAiTransaction?.rollback();
+      return {
+        ok: false,
+        message: "OpenClaw config write failed.",
+        config: snippet,
+        persisted: false,
+      };
+    }
+    console.log("\n✅ Setup complete. Saved Inkbox settings to the active OpenClaw config.");
+    // Step 9 — the config file is written straight to disk, so a gateway that
+    // is already up is still serving the old channels.inkbox. Offer to reload
+    // it here instead of leaving that as a printed instruction. Only on the
+    // persisted path: when the snippet is printed for manual paste there is
+    // nothing on disk yet to pick up.
+    const gatewayLive = await offerGatewayRestart(
+      opts.prompter,
+      opts.runGatewayCommand ?? defaultGatewayCommandRunner,
+    );
+    // A live gateway means setup finished the job, so close on that rather
+    // than a to-do list. Only when nothing is listening is there a step left.
+    if (gatewayLive) {
+      printReadyBanner(identityHandle);
+    } else {
+      console.log("\nRun `openclaw inkbox doctor` to verify the connection.");
+      console.log("Start the gateway with `openclaw gateway run` when you're ready.");
+    }
+    console.log("");
+    return { ok: true, config: snippet, persisted: true };
+  }
+
+  console.log("\n✅ Setup complete. Add this to your OpenClaw config under channels.inkbox:\n");
+  console.log(JSON.stringify(snippet, null, 2));
+  console.log("\nThen run `openclaw inkbox doctor` to verify the connection.\n");
+
+  return { ok: true, config: snippet, persisted: false };
+}
+
+// Light wrapper used by the CLI command — instantiates a readline prompter,
+// runs the wizard, and ensures the prompter is closed even on error.
+export async function runSetupWizardCli(options: {
+  currentConfig?: unknown;
+  env?: NodeJS.ProcessEnv;
+  persistConfig?: WizardConfigPersister;
+} = {}): Promise<void> {
+  const { createOpenClawPrompter } = await import("./prompt.js");
+  const prompter = createOpenClawPrompter();
+  try {
+    const result = await runSetupWizard({
+      prompter,
+      currentConfig: options.currentConfig,
+      env: options.env,
+      persistConfig: options.persistConfig ?? persistOpenClawConfigFile,
+    });
+    if (!result.ok) {
+      console.error(`\n❌ Setup did not complete: ${result.message}`);
+      process.exitCode = 1;
+    }
+  } finally {
+    await prompter.close();
+  }
+}
+
+// Re-export readIdentityState for convenience (doctor and other CLI commands
+// will want it).
+export { readIdentityState };

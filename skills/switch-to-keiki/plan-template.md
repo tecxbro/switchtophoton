@@ -50,7 +50,8 @@ Never override an explicit user-selected branch with the default.
 Source integration
 - Provider: <provider>
 - Repo shape: <consumer application | provider library/adapter | provider façade/MCP server/proxy | provider SDK | provisioning tooling | passive sink/webhook recorder/test harness | provider's own plugin fork | provider's own product | provider-authored host-platform plugin/template | deployment template/wrapper-image | catalog/plugin-host platform | MCP consumer>
-- Checkout completeness: <full repo | sparse/partial checkout — name what's missing and which capabilities are unverifiable>
+- Checkout completeness: <full repo | sparse/partial checkout — name what's missing and which capabilities are unverifiable; verify against `git ls-files -t`/materialized files, not just the sparse-checkout spec>
+- **Unverifiable bucket:** capabilities that could not be inspected due to checkout completeness, absent evidence, or unresolvable versions — list each with what evidence would resolve it. Do not fold unverifiable items into `N/A` or `intentionally excluded`.
 - Public API surface to preserve (library/adapter/façade repos): <exported symbols, route/tool wire contract, identifier formats, rename-vs-rewrite-vs-new-package decision, breaking-change/versioning record — or n/a>
 - Provider-boundary scope: <which providers/channels are being replaced; disposition of the rest; in/out-of-scope decision for optional or env-gated integrations>
 - Substrate check: <is the source provider itself a Keiki line provider, or does the host platform have an official Keiki adapter (@onkeiki/*)? adapter-retirement evaluated: yes/no + why>
@@ -467,4 +468,4 @@ APPROVE SWITCH TO KEIKI PLAN
 When the plan verdict is infeasible-as-specified or blocked-on-evidence with no executable path, do not include the approval phrase — state what must be resolved or which option the user chooses instead.
 ```
 
-Stop after showing the plan. Do not edit while waiting. Low-confidence detection also requires explicit acceptance of the stated risk; the approval phrase alone does not silently waive it. For small integrations, mark inapplicable template sections `N/A` explicitly — proportionality is expected, not optional.
+Stop after showing the plan. Do not edit while waiting. Low-confidence detection also requires explicit acceptance of the stated risk; the approval phrase alone does not silently waive it. For small integrations, mark inapplicable template sections `N/A` explicitly — proportionality is expected, not optional. For large multi-package/multi-deployable repos, decompose: produce one plan per provider boundary (per-boundary verdicts), each scoped to its own files, and request approval per boundary or for the set explicitly named.

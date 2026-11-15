@@ -22,6 +22,7 @@ Confirm combinations of:
 - endpoint families `/api/v1/imessage/*`, `/api/v1/phone/*`, `/api/v1/mail/*`, `/api/v1/whatsapp/*`, `/api/v1/webhooks/subscriptions`, `/api/v1/identities`, `/api/v1/compliance`;
 - `Idempotency-Key` and `Prefer: idempotency-replay` headers;
 - webhook headers `X-Inkbox-Signature`, `X-Inkbox-Timestamp`, `X-Inkbox-Request-Id` and per-identity `whsec_…` signing keys;
+- host-platform plugin fingerprints: `*.plugin.json` manifests declaring `inkbox_*` tool contracts, `@inkbox/sdk/tunnels/connect` subpath imports, per-account route parts (e.g. `/inkbox/<acct>/phone/media/ws` call-media WebSockets), `INKBOX_CHANNEL_ID="inkbox"`, `INKBOX_WEBHOOK_SECRET_*` per-endpoint schemes, call/realtime-audio code (`mulaw`/`pcm` resamplers);
 - payload fields `agent_identity_id`, `conversation_id`, `assignment_id`, `remote_number`, `send_style`, `was_downgraded`, `group_creation_status`, `imessage_connection_expired`, event IDs `evt_…`.
 
 A name alone is insufficient. Confirm active calls, handlers, fixtures, or deployment configuration.
@@ -45,7 +46,7 @@ Check active use of:
 - SDK sub-surfaces observed in first-party plugins: `inkbox.companion` (Slack companion channel), `client.vault` (secrets + TOTP), `client.contacts` CRUD, `identity.a2a_client()` outbound A2A calls, `inkbox.whatsapp`/`inkbox.identities`/`inkbox.whoami` helpers, tunnel client (`inkbox.tunnels.client`), and agent-facing MCP tool builders (`build_*_mcp_server` exposing `inkbox_*` tools) — inventory each as its own capability row;
 - webhook subscriptions (`agent_identity_id` selector, `event_types`, `auth_token`), signature verification, `evt_…` deduplication, replay, and the 60-subscription cap;
 - silent SMS/RCS downgrade (`service`, `was_downgraded`) and `check-messaging-capability`;
-- delivery lifecycle webhooks (`imessage.sent/delivered/delivery_failed`, `text.*`, `message.*`, `whatsapp.*`) and per-recipient status fields.
+- delivery lifecycle webhooks (`imessage.sent/delivered/delivery_failed`, `text.*` = SMS-family, `message.*` = email/mailbox, `whatsapp.*`) and per-recipient status fields — note the channel prefix semantics when inventorying event families.
 
 Only proven capabilities belong in the plan.
 

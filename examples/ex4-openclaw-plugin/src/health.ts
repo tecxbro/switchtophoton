@@ -1,0 +1,649 @@
+import { Inkbox, InkboxAPIError } from "@inkbox/sdk";
+import {
+  getHealthCheck,
+  registerHealthCheck,
+  type HealthCheck,
+  type HealthCheckContext,
+  type HealthFinding,
+  type HealthRepairContext,
+  type HealthRepairResult,
+} from "openclaw/plugin-sdk/health";
+import { resolveInkboxAccount } from "./accounts.js";
+import {
+  deriveConfiguredCallWebsocketUrl,
+  inkboxCallWebsocketPath,
+  inkboxWebhookPath,
+  publicUrl as composePublicUrl,
+  websocketUrl,
+} from "./call-websocket.js";
+import { inkboxClientOptions } from "./sdk-options.js";
+import { readIdentityState, writeIdentityState } from "./state.js";
+import type { PhoneVoiceStack } from "./voice-stack.js";
+import { SLACK_SUBSCRIPTION_EVENTS } from "./slack.js";
+import { hasNativeIMessageCapability } from "./imessage-threading.js";
+import { readCompanionQueueSummary } from "./inbound/companion.js";
+
+const SOURCE = "@inkbox/inkbox";
+
+const CHECKS = [
+  "inkbox/config-missing-api-key",
+  "inkbox/config-missing-identity",
+  "inkbox/config-missing-signing-key",
+  "inkbox/auth-whoami-failed",
+  "inkbox/auth-key-admin-scoped",
+  "inkbox/identity-not-found",
+  "inkbox/cached-state-missing",
+  "inkbox/cached-state-stale",
+  "inkbox/no-mailbox",
+  "inkbox/no-phone-number",
+  "inkbox/sms-not-ready",
+  "inkbox/tunnel-config-conflict",
+  "inkbox/webhook-subscription-mailbox",
+  "inkbox/webhook-subscription-phone-text",
+  "inkbox/incoming-call-route",
+  "inkbox/slack-readiness",
+  "inkbox/imessage-threading-readiness",
+  "inkbox/durable-queue",
+] as const;
+
+type InkboxCheckId = (typeof CHECKS)[number];
+
+const DESCRIPTIONS: Record<InkboxCheckId, string> = {
+  "inkbox/config-missing-api-key": "Inkbox API key is configured",
+  "inkbox/config-missing-identity": "Inkbox identity handle is configured",
+  "inkbox/config-missing-signing-key": "Inkbox webhook signing key is configured",
+  "inkbox/auth-whoami-failed": "Inkbox API key authenticates successfully",
+  "inkbox/auth-key-admin-scoped": "Inkbox API key is agent-scoped",
+  "inkbox/identity-not-found": "Configured Inkbox identity exists",
+  "inkbox/cached-state-missing": "Inkbox cached identity state exists",
+  "inkbox/cached-state-stale": "Inkbox cached identity state matches config",
+  "inkbox/no-mailbox": "Inkbox identity has a mailbox",
+  "inkbox/no-phone-number": "Inkbox identity has a phone number",
+  "inkbox/sms-not-ready": "Inkbox identity phone number can send SMS",
+  "inkbox/tunnel-config-conflict": "Inkbox public URL and tunnel config are not conflicting",
+  "inkbox/webhook-subscription-mailbox": "Inkbox mailbox events are subscribed at the expected URL",
+  "inkbox/webhook-subscription-phone-text": "Inkbox phone text events are subscribed at the expected URL",
+  "inkbox/incoming-call-route": "Inkbox phone number has an incoming-call route configured",
+  "inkbox/slack-readiness": "Inkbox Slack capability, connection, and subscription readiness",
+  "inkbox/imessage-threading-readiness": "Inkbox native iMessage SDK capability and provisioning",
+  "inkbox/durable-queue": "Inkbox retained queue and native ownership uncertainty",
+};
+
+const OC_BASE = "oc://config/channels/inkbox";
+
+function finding(
+  checkId: InkboxCheckId,
+  severity: HealthFinding["severity"],
+  message: string,
+  path: string,
+  fixHint: string,
+): HealthFinding {
+  const configPath = path.startsWith("channels.inkbox.")
+    ? `${OC_BASE}/${path.replace("channels.inkbox.", "").replaceAll(".", "/")}`
+    : path === "channels.inkbox"
+      ? OC_BASE
+      : undefined;
+  return {
+    checkId,
+    severity,
+    message,
+    source: SOURCE,
+    path,
+    ocPath: configPath,
+    fixHint,
+  };
+}
+
+function messageFromError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return String(error);
+}
+
+function isNotFound(error: unknown): boolean {
+  return error instanceof InkboxAPIError && error.statusCode === 404;
+}
+
+interface IncomingCallRoute {
+  incomingCallAction?: string | null;
+  clientWebsocketUrl?: string | null;
+  incomingCallWebhookUrl?: string | null;
+}
+
+interface IncomingCallRouteAssessment {
+  ok: boolean;
+  expected: string;
+  actual: string;
+}
+
+function displayRouteValue(value: string | undefined): string {
+  return value === undefined ? "(unset)" : JSON.stringify(value);
+}
+
+export function assessIncomingCallRoute(
+  voiceStack: PhoneVoiceStack | undefined,
+  route: IncomingCallRoute,
+  expectedClientWebsocketUrl: string | undefined,
+): IncomingCallRouteAssessment {
+  const action = route.incomingCallAction ?? undefined;
+  const websocket = route.clientWebsocketUrl ?? undefined;
+  const webhook = route.incomingCallWebhookUrl ?? undefined;
+  const actual =
+    `action=${displayRouteValue(action)}, ` +
+    `clientWebsocketUrl=${displayRouteValue(websocket)}, ` +
+    `incomingCallWebhookUrl=${displayRouteValue(webhook)}`;
+
+  // Preserve the pre-voice-stack health behavior for existing installs that
+  // have not run the new wizard yet.
+  if (!voiceStack) {
+    const ok =
+      action === "auto_accept"
+        ? Boolean(websocket)
+        : action === "webhook"
+          ? Boolean(webhook)
+          : action === "auto_reject";
+    return {
+      ok,
+      expected: "legacy configured incoming-call route",
+      actual,
+    };
+  }
+
+  if (voiceStack === "inkbox_voice_ai") {
+    return {
+      ok:
+        action === "hosted_agent" &&
+        websocket === undefined &&
+        webhook === undefined,
+      expected:
+        'action="hosted_agent", clientWebsocketUrl=(unset), incomingCallWebhookUrl=(unset)',
+      actual,
+    };
+  }
+
+  return {
+    ok:
+      Boolean(expectedClientWebsocketUrl) &&
+      action === "auto_accept" &&
+      websocket === expectedClientWebsocketUrl &&
+      webhook === undefined,
+    expected:
+      `action="auto_accept", ` +
+      `clientWebsocketUrl=${displayRouteValue(expectedClientWebsocketUrl)}, ` +
+      "incomingCallWebhookUrl=(unset)",
+    actual,
+  };
+}
+
+export async function detectInkboxHealthFindings(
+  ctx: Pick<HealthCheckContext, "cfg">,
+  env: NodeJS.ProcessEnv = process.env,
+): Promise<readonly HealthFinding[]> {
+  const findings: HealthFinding[] = [];
+  const account = resolveInkboxAccount({ cfg: ctx.cfg, env });
+
+  if (!account.apiKey) {
+    findings.push(
+      finding(
+        "inkbox/config-missing-api-key",
+        "error",
+        "Inkbox apiKey is missing.",
+        "channels.inkbox.apiKey",
+        "Run `openclaw inkbox setup` or set channels.inkbox.apiKey / INKBOX_API_KEY.",
+      ),
+    );
+  } else if (!account.apiKey.startsWith("ApiKey_")) {
+    findings.push(
+      finding(
+        "inkbox/config-missing-api-key",
+        "error",
+        "Inkbox apiKey is present but does not look like an ApiKey_ value.",
+        "channels.inkbox.apiKey",
+        "Use an Inkbox API key that starts with ApiKey_.",
+      ),
+    );
+  }
+
+  if (!account.identity) {
+    findings.push(
+      finding(
+        "inkbox/config-missing-identity",
+        "error",
+        "Inkbox identity handle is missing.",
+        "channels.inkbox.identity",
+        "Run `openclaw inkbox setup` or set channels.inkbox.identity / INKBOX_IDENTITY.",
+      ),
+    );
+  }
+
+  if (!account.signingKey) {
+    findings.push(
+      finding(
+        "inkbox/config-missing-signing-key",
+        "warning",
+        "Inkbox signingKey is missing, so inbound email/SMS/call webhooks cannot be verified.",
+        "channels.inkbox.signingKey",
+        "Run `openclaw inkbox setup` to paste or rotate a webhook signing key.",
+      ),
+    );
+  }
+
+  if (account.publicUrl && account.tunnelName) {
+    findings.push(
+      finding(
+        "inkbox/tunnel-config-conflict",
+        "warning",
+        "Both publicUrl and tunnelName are set; publicUrl takes precedence and the tunnel name is ignored.",
+        "channels.inkbox",
+        "Remove either publicUrl or tunnelName so the intended inbound route is unambiguous.",
+      ),
+    );
+  }
+
+  if (!account.apiKey || !account.identity || !account.apiKey.startsWith("ApiKey_")) {
+    return findings;
+  }
+
+  const client = new Inkbox(inkboxClientOptions(account.apiKey, account.baseUrl));
+  if (typeof client.ready === "function") void client.ready().catch(() => {});
+
+  try {
+    const info = await client.whoami();
+    if (info.authType === "api_key" && info.authSubtype === "api_key.admin_scoped") {
+      findings.push(
+        finding(
+          "inkbox/auth-key-admin-scoped",
+          "warning",
+          "Inkbox is using an admin-scoped API key; the plugin is designed to run with an agent-scoped key.",
+          "channels.inkbox.apiKey",
+          "Run `openclaw inkbox setup` with the admin key to mint an agent-scoped key for this identity.",
+        ),
+      );
+    }
+  } catch (error) {
+    findings.push(
+      finding(
+        "inkbox/auth-whoami-failed",
+        "error",
+        `Inkbox whoami failed: ${messageFromError(error)}`,
+        "channels.inkbox.apiKey",
+        "Verify the API key, baseUrl, and network connectivity.",
+      ),
+    );
+    return findings;
+  }
+
+  let identity;
+  try {
+    identity = await client.getIdentity(account.identity);
+  } catch (error) {
+    findings.push(
+      finding(
+        "inkbox/identity-not-found",
+        "error",
+        isNotFound(error)
+          ? `Inkbox identity ${account.identity} was not found for this API key.`
+          : `Inkbox identity lookup failed for ${account.identity}: ${messageFromError(error)}`,
+        "channels.inkbox.identity",
+        "Set identity to a handle visible to this API key, or mint a key scoped to the configured identity.",
+      ),
+    );
+    return findings;
+  }
+
+  const cached = await readIdentityState();
+  if (!cached) {
+    findings.push(
+      finding(
+        "inkbox/cached-state-missing",
+        "info",
+        "Inkbox cached identity state is missing.",
+        "~/.openclaw/inkbox/identity-state.json",
+        "Run `openclaw inkbox setup` or `openclaw doctor --fix --only inkbox/cached-state-missing` to refresh local state.",
+      ),
+    );
+  } else if (
+    cached.identityHandle !== account.identity ||
+    cached.emailAddress !== (identity.mailbox?.emailAddress ?? null) ||
+    cached.phoneNumber !== (identity.phoneNumber?.number ?? null) ||
+    cached.tunnelPublicHost !== (identity.tunnel?.publicHost ?? null)
+  ) {
+    findings.push(
+      finding(
+        "inkbox/cached-state-stale",
+        "info",
+        "Inkbox cached identity state does not match the live configured identity.",
+        "~/.openclaw/inkbox/identity-state.json",
+        "Run `openclaw inkbox setup` or `openclaw doctor --fix --only inkbox/cached-state-stale` to refresh local state.",
+      ),
+    );
+  }
+
+  if (!identity.mailbox) {
+    findings.push(
+      finding(
+        "inkbox/no-mailbox",
+        "warning",
+        `Inkbox identity ${account.identity} has no mailbox; email tools will not work.`,
+        "channels.inkbox.identity",
+        "Create or repair the identity in Inkbox so it has a mailbox.",
+      ),
+    );
+  }
+
+  if (!identity.phoneNumber) {
+    findings.push(
+      finding(
+        "inkbox/no-phone-number",
+        "info",
+        `Inkbox identity ${account.identity} has no dedicated phone number; SMS and dedicated-line calls are unavailable.`,
+        "channels.inkbox.identity",
+        "Run `openclaw inkbox setup` and choose phone provisioning, or provision a number in Inkbox.",
+      ),
+    );
+  } else if (String(identity.phoneNumber.smsStatus).toLowerCase() !== "ready") {
+    findings.push(
+      finding(
+        "inkbox/sms-not-ready",
+        "warning",
+        `Inkbox phone ${identity.phoneNumber.number} has smsStatus=${identity.phoneNumber.smsStatus}.`,
+        "channels.inkbox.identity",
+        "Wait for carrier propagation or have the recipient text START before retrying outbound SMS.",
+      ),
+    );
+  }
+
+  const expectedBase = resolveExpectedWebhookBase(account, identity, cached);
+  const expectedUrl = expectedBase
+    ? composePublicUrl(expectedBase, inkboxWebhookPath(account.accountId))
+    : undefined;
+  const configuredCallWebsocketUrl = deriveConfiguredCallWebsocketUrl(account);
+  const expectedCallWebsocketUrl =
+    account.callWebsocketUrl || account.publicUrl
+      ? configuredCallWebsocketUrl
+      : expectedBase
+        ? websocketUrl(expectedBase, inkboxCallWebsocketPath(account.accountId))
+        : configuredCallWebsocketUrl;
+
+  if (identity.mailbox?.id) {
+    if (!expectedUrl) {
+      findings.push(
+        finding(
+          "inkbox/webhook-subscription-mailbox",
+          "info",
+          "Cannot determine the expected mailbox webhook URL; set publicUrl or run setup so the tunnel host is cached.",
+          "channels.inkbox.publicUrl",
+          "Set channels.inkbox.publicUrl, or run `openclaw inkbox setup` so the tunnel host is recorded.",
+        ),
+      );
+    } else {
+      try {
+        const subs = await client.webhooks.subscriptions.list({
+          mailboxId: identity.mailbox.id,
+        });
+        const match = subs.find((sub) => sub.url === expectedUrl);
+        if (!match) {
+          findings.push(
+            finding(
+              "inkbox/webhook-subscription-mailbox",
+              "warning",
+              `No mailbox subscription is wired to ${expectedUrl}.`,
+              "channels.inkbox",
+              "Run `openclaw inkbox setup` to create or update the mailbox subscription.",
+            ),
+          );
+        } else if (!match.eventTypes.includes("message.received")) {
+          findings.push(
+            finding(
+              "inkbox/webhook-subscription-mailbox",
+              "warning",
+              `Mailbox subscription at ${expectedUrl} does not include message.received; inbound email will not be delivered.`,
+              "channels.inkbox",
+              "Run `openclaw inkbox setup` to refresh the subscription event types.",
+            ),
+          );
+        }
+      } catch (error) {
+        findings.push(
+          finding(
+            "inkbox/webhook-subscription-mailbox",
+            "info",
+            `Could not list mailbox subscriptions: ${messageFromError(error)}`,
+            "channels.inkbox",
+            "Re-check after the API is reachable.",
+          ),
+        );
+      }
+    }
+  }
+
+  if (identity.phoneNumber?.id) {
+    if (!expectedUrl) {
+      findings.push(
+        finding(
+          "inkbox/webhook-subscription-phone-text",
+          "info",
+          "Cannot determine the expected phone text webhook URL; set publicUrl or run setup so the tunnel host is cached.",
+          "channels.inkbox.publicUrl",
+          "Set channels.inkbox.publicUrl, or run `openclaw inkbox setup` so the tunnel host is recorded.",
+        ),
+      );
+    } else {
+      try {
+        const subs = await client.webhooks.subscriptions.list({
+          phoneNumberId: identity.phoneNumber.id,
+        });
+        const match = subs.find((sub) => sub.url === expectedUrl);
+        if (!match) {
+          findings.push(
+            finding(
+              "inkbox/webhook-subscription-phone-text",
+              "warning",
+              `No phone text subscription is wired to ${expectedUrl}.`,
+              "channels.inkbox",
+              "Run `openclaw inkbox setup` to create or update the phone text subscription.",
+            ),
+          );
+        } else if (!match.eventTypes.includes("text.received")) {
+          findings.push(
+            finding(
+              "inkbox/webhook-subscription-phone-text",
+              "warning",
+              `Phone text subscription at ${expectedUrl} does not include text.received; inbound SMS will not be delivered.`,
+              "channels.inkbox",
+              "Run `openclaw inkbox setup` to refresh the subscription event types.",
+            ),
+          );
+        }
+      } catch (error) {
+        findings.push(
+          finding(
+            "inkbox/webhook-subscription-phone-text",
+            "info",
+            `Could not list phone text subscriptions: ${messageFromError(error)}`,
+            "channels.inkbox",
+            "Re-check after the API is reachable.",
+          ),
+        );
+      }
+    }
+
+  }
+
+  // Inbound-call config is identity-scoped: one row covers the dedicated
+  // number AND the shared iMessage line, so check it whenever calls can
+  // arrive on either.
+  if (identity.phoneNumber || (identity as any).imessageEnabled) {
+    let callAction: string | undefined;
+    let callWebhookUrl: string | undefined;
+    let callWsUrl: string | undefined;
+    let readFailed = false;
+    if (typeof (identity as any).getIncomingCallAction === "function") {
+      try {
+        const callConfig = await (identity as any).getIncomingCallAction();
+        callAction = callConfig?.incomingCallAction ?? undefined;
+        callWebhookUrl = callConfig?.incomingCallWebhookUrl ?? undefined;
+        callWsUrl = callConfig?.clientWebsocketUrl ?? undefined;
+      } catch (error) {
+        // Absent config (404) is a legitimate "not wired yet" state; any
+        // other failure means we can't tell and shouldn't warn either way.
+        if (!(error instanceof InkboxAPIError && error.statusCode === 404)) {
+          readFailed = true;
+        }
+      }
+    } else {
+      // Legacy SDK without the identity-scoped surface — read the
+      // number-scoped fields.
+      callAction = (identity.phoneNumber as any)?.incomingCallAction;
+      callWebhookUrl = (identity.phoneNumber as any)?.incomingCallWebhookUrl;
+      callWsUrl = (identity.phoneNumber as any)?.clientWebsocketUrl;
+    }
+    const routeAssessment = assessIncomingCallRoute(
+      account.config.voiceStack,
+      {
+        incomingCallAction: callAction,
+        clientWebsocketUrl: callWsUrl,
+        incomingCallWebhookUrl: callWebhookUrl,
+      },
+      expectedCallWebsocketUrl,
+    );
+    if (readFailed) {
+      findings.push(
+        finding(
+          "inkbox/incoming-call-route",
+          "info",
+          "Could not read the identity incoming-call config.",
+          "channels.inkbox",
+          "Re-check after the API is reachable.",
+        ),
+      );
+    } else if (!routeAssessment.ok) {
+      const selectedStack = account.config.voiceStack ?? "legacy (not selected)";
+      findings.push(
+        finding(
+          "inkbox/incoming-call-route",
+          "warning",
+          `Identity ${account.identity} incoming-call route does not match selected voiceStack=${selectedStack}. Expected ${routeAssessment.expected}; actual ${routeAssessment.actual}.`,
+          "channels.inkbox",
+          "Run `openclaw inkbox setup` to wire the incoming-call route.",
+        ),
+      );
+    }
+  }
+
+  if (!account.config.slackEnabled) {
+    findings.push(finding("inkbox/slack-readiness", "info", "Inkbox Slack is disabled; remote readiness was not probed.", "channels.inkbox.slackEnabled", "Enable Slack through setup when wanted."));
+  } else if (!client.slack || !["listConnections", "listConversations", "listMessages", "searchMessages", "sendMessage", "getAction"].every((name) => typeof (client.slack as any)[name] === "function")) {
+    findings.push(finding("inkbox/slack-readiness", "error", "Slack is enabled, but the installed SDK lacks required Slack APIs.", "channels.inkbox.slackEnabled", "Reinstall a supported plugin package with its pinned SDK."));
+  } else {
+    try {
+      const connections = (await client.slack.listConnections(identity.id)).connections;
+      const owned = connections.filter((connection) => connection.identityId === identity.id && connection.status === "connected");
+      const ambiguous = owned.some((connection) => connections.filter((other) => other.id === connection.id).length !== 1);
+      const subscriptions = await client.webhooks.subscriptions.list({ agentIdentityId: identity.id });
+      const wired = Boolean(expectedUrl && subscriptions.some((sub) => sub.url === expectedUrl && sub.status === "active" && SLACK_SUBSCRIPTION_EVENTS.every((event) => sub.eventTypes.includes(event))));
+      const ready = owned.length > 0 && !ambiguous && wired;
+      findings.push(finding("inkbox/slack-readiness", ready ? "info" : "warning", `Slack: ${owned.length} connected identity-owned installations; subscription ${wired ? "ready" : "not ready"}${ambiguous ? "; ambiguous connection ownership" : ""}. Visible activity and delivery are not verified.`, "channels.inkbox.slackEnabled", ready ? "Use separate Slack UI acceptance to verify native indicators." : "Run setup to inspect the identity's installation and inbound subscription; do not create a duplicate blindly."));
+    } catch {
+      findings.push(finding("inkbox/slack-readiness", "warning", "Slack is enabled; remote connection or subscription readiness could not be verified.", "channels.inkbox.slackEnabled", "Check API availability and access, then rerun doctor; no provisioning was attempted."));
+    }
+  }
+  const threaded = account.config.imessageThreadedReplies === true;
+  const capable = hasNativeIMessageCapability(identity);
+  findings.push(finding("inkbox/imessage-threading-readiness", !threaded ? "info" : !capable ? "error" : !identity.imessageEnabled ? "warning" : "info",
+    !threaded ? "Native iMessage replies are disabled; remote threading was not probed." : !capable ? "Native iMessage replies are enabled, but the installed SDK lacks native reply/read APIs." : !identity.imessageEnabled ? "Native iMessage APIs are available, but iMessage is not enabled for this identity." : "Native iMessage SDK APIs are available. Backend thread support is verified against each exact source before sending; doctor does not prove device delivery.",
+    "channels.inkbox.imessageThreadedReplies", !capable && threaded ? "Reinstall a supported plugin package with its pinned SDK, or disable threaded replies." : "Keep receipt state intact; verify native threading separately on the receiving device."));
+  const queue = await readCompanionQueueSummary(account.accountId, account.config, identity.id);
+  findings.push(finding("inkbox/durable-queue", !queue.readable || queue.unconfirmed || queue.awaitingStopFence ? "warning" : "info",
+    queue.readable ? `Durable queue: ${queue.pending} pending; ${queue.savedAnswers} saved answers; ${queue.active} active; ${queue.unconfirmed} unconfirmed; ${queue.blockedConversations} active or unfenced scopes; ${queue.awaitingStopFence} pending Stop fences; ${queue.disabledRetained} retained while disabled.` : "Durable queue state is unreadable; readiness cannot be established.",
+    "channels.inkbox", "Retained uncertainty is not a receiver-liveness or delivery check. Do not delete receipts or blindly resend; progress requires exact native completion/fencing."));
+  return findings;
+}
+
+function resolveExpectedWebhookBase(
+  account: ReturnType<typeof resolveInkboxAccount>,
+  identity: { tunnel?: { publicHost?: string | null } | null },
+  cached: { tunnelPublicHost?: string | null } | null,
+): string | undefined {
+  if (account.publicUrl) {
+    return account.publicUrl;
+  }
+  const tunnelHost =
+    identity.tunnel?.publicHost ?? cached?.tunnelPublicHost ?? undefined;
+  if (tunnelHost) {
+    return `https://${tunnelHost}`;
+  }
+  const tunnelName = account.tunnelName ?? account.identity;
+  return tunnelName ? `https://${tunnelName}.inkboxwire.com` : undefined;
+}
+
+async function repairCachedState(
+  ctx: HealthRepairContext,
+): Promise<HealthRepairResult> {
+  const account = resolveInkboxAccount({ cfg: ctx.cfg, env: process.env });
+  if (!account.apiKey || !account.identity) {
+    return {
+      status: "skipped",
+      reason: "Inkbox apiKey and identity are required before cached state can be refreshed.",
+      changes: [],
+    };
+  }
+  const client = new Inkbox(inkboxClientOptions(account.apiKey, account.baseUrl));
+  const identity = await client.getIdentity(account.identity);
+  await writeIdentityState({
+    identityHandle: account.identity,
+    emailAddress: identity.mailbox?.emailAddress ?? null,
+    phoneNumber: identity.phoneNumber?.number ?? null,
+    imessageEnabled: Boolean((identity as any).imessageEnabled),
+    tunnelPublicHost: identity.tunnel?.publicHost ?? null,
+    savedAt: new Date().toISOString(),
+  });
+  return {
+    changes: ["Refreshed ~/.openclaw/inkbox/identity-state.json from the live Inkbox identity."],
+    effects: [
+      {
+        kind: "state",
+        action: "write",
+        target: "~/.openclaw/inkbox/identity-state.json",
+        dryRunSafe: false,
+      },
+    ],
+  };
+}
+
+const cache = new WeakMap<object, Promise<readonly HealthFinding[]>>();
+
+async function detectCached(ctx: HealthCheckContext): Promise<readonly HealthFinding[]> {
+  let promise = cache.get(ctx);
+  if (!promise) {
+    promise = detectInkboxHealthFindings(ctx);
+    cache.set(ctx, promise);
+  }
+  return promise;
+}
+
+function makeHealthCheck(id: InkboxCheckId): HealthCheck {
+  return {
+    id,
+    kind: "plugin",
+    source: SOURCE,
+    description: DESCRIPTIONS[id],
+    async detect(ctx) {
+      const findings = await detectCached(ctx);
+      return findings.filter((finding) => finding.checkId === id);
+    },
+    ...(id === "inkbox/cached-state-missing" || id === "inkbox/cached-state-stale"
+      ? { repair: repairCachedState }
+      : {}),
+  };
+}
+
+export function registerInkboxHealthChecks(): void {
+  for (const id of CHECKS) {
+    // Discovery and model-tool preparation may load independent module graphs
+    // against the same host registry; a module-local flag cannot deduplicate it.
+    if (getHealthCheck(id)?.source === SOURCE) continue;
+    registerHealthCheck(makeHealthCheck(id));
+  }
+}

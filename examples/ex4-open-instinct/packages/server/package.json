@@ -1,0 +1,52 @@
+{
+  "name": "@open-instinct/server",
+  "version": "0.1.0",
+  "description": "The Open Instinct agent process: /health, /chat, /schedules, webhook intake, local dev runner (Maritime BYO contract)",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "smoke": "node dist/smoke.js",
+    "start": "node dist/main.js"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "^1.0.1",
+    "@earendil-works/pi-ai": "^1.0.1",
+    "@earendil-works/pi-coding-agent": "^1.0.1",
+    "@inkbox/sdk": "^0.7.13",
+    "@open-instinct/ample": "workspace:*",
+    "@open-instinct/apps": "workspace:*",
+    "@open-instinct/atomicmail": "workspace:*",
+    "@open-instinct/computer": "workspace:*",
+    "@open-instinct/context": "workspace:*",
+    "@open-instinct/core": "workspace:*",
+    "@open-instinct/inkbox": "workspace:*",
+    "@open-instinct/keenable": "workspace:*",
+    "@open-instinct/network": "workspace:*",
+    "@open-instinct/payments": "workspace:*",
+    "@open-instinct/whatsapp": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
