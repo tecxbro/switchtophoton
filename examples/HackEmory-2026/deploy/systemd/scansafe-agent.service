@@ -1,0 +1,30 @@
+# ScanSafe FaceTime agent: LiveKit worker that registers as "scansafe-agent" (AGENT_NAME).
+# Agent server 144.202.25.65. It loads chert/scansafe-agent/.env.local (LiveKit keys) and
+# ~/HackEmory-2026/.env itself (chert/agent_integration.py), so no EnvironmentFile here.
+[Unit]
+Description=ScanSafe FaceTime agent (python3 -m chert.agent_integration start)
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/HackEmory-2026
+Environment=HOME=/root PYTHONUNBUFFERED=1
+# On SIGTERM the worker drains: it stops taking new jobs and waits for running ones. chert dev
+# always keeps one job open (the warm waiting room), so without a bound every stop would wait
+# for LiveKit's 1 h default. --drain-timeout 5 bounds the drain; the job processes then take
+# another ~15 s to give up on the waiting room, so TimeoutStopSec=8 below ends that with
+# SIGKILL (harmless: the worker holds no state, and LiveKit drops the dead participant at once).
+ExecStart=/usr/bin/python3 -m chert.agent_integration start --drain-timeout 5
+Restart=always
+RestartSec=5
+# SIGTERM goes to the worker only (it manages its own job processes); after TimeoutStopSec
+# everything left in the unit gets SIGKILL. A restart takes ~8 s down + ~4 s to "registered worker".
+KillMode=mixed
+TimeoutStopSec=8
+SyslogIdentifier=scansafe-agent
+
+[Install]
+WantedBy=multi-user.target

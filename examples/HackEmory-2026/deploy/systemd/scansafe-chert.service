@@ -1,0 +1,28 @@
+# Chert FaceTime bridge: holds the Chert line and keeps a warm LiveKit room with the
+# "scansafe-agent" worker in it. Agent server 144.202.25.65.
+# Reads LiveKit keys from .env.local in its working directory and the Chert login from
+# ~/.chert (HOME=/root). Replaces the old tmux "while true; ...; sleep 20" loop.
+[Unit]
+Description=ScanSafe Chert bridge (chert dev --agent scansafe-agent)
+Wants=network-online.target scansafe-agent.service
+After=network-online.target scansafe-agent.service
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/HackEmory-2026/chert/scansafe-agent
+Environment=HOME=/root
+ExecStart=/usr/bin/chert dev --agent scansafe-agent
+# Chert outages make it exit (backend_unreachable); retry like the old loop did.
+Restart=always
+RestartSec=20
+# Chert: stop with SIGINT/SIGTERM and wait; never SIGKILL, or the line stays held until its
+# lease lapses. Give the drain plenty of time before systemd escalates.
+KillSignal=SIGTERM
+KillMode=mixed
+TimeoutStopSec=60
+SyslogIdentifier=scansafe-chert
+
+[Install]
+WantedBy=multi-user.target

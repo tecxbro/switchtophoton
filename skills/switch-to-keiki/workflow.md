@@ -6,9 +6,12 @@ The workflow has two hard phases. Do not combine them.
 
 ```text
 Inspect repository
-→ establish repository state and repo shape (consumer app / provider library /
-  façade-MCP-proxy / SDK / provisioning tool)
-→ scope provider boundary (single provider, multi-provider, adjacent vendors)
+→ establish repository state, checkout completeness, and repo shape
+  (consumer app / provider library / façade-MCP-proxy / SDK / provisioning
+  tool / passive sink / provider's own product / host-platform
+  plugin-template / catalog-plugin-host / wrapper-image / MCP consumer)
+→ scope provider boundary (single provider, multi-provider, adjacent vendors,
+  enabled third-party MCP servers, catalog blocks)
 → detect source provider
 → detect exact source version or API generation (per surface when mixed)
 → fast-reject check for disqualifying capabilities
@@ -40,6 +43,8 @@ Inspect repository
 
 Do not begin by choosing Keiki APIs.
 
+The fast-reject step runs on a **shallow scan**, not the full capability inventory: before deep mapping, grep for the disqualifier patterns themselves — cold-outbound send calls (`POST /chats`, `send-api-message`, `messages.send` to arbitrary recipients), voice/call API usage (`/calls`, `place_call`, LiveKit/voice bridges), contacts/history/CRM endpoints, and provider-SDK surfaces with no Keiki analog. A shallow scan answers "is there a disqualifier?" cheaply; the full inventory still runs afterward for everything that survives.
+
 # PHASE 1 — INSPECT AND PLAN
 
 Phase 1 is read-only.
@@ -69,6 +74,8 @@ Record:
 - languages, frameworks, package managers, deployment model, and available verification commands.
 
 If repository state is ambiguous, report it as a blocker rather than altering it. When the repository has no `.git` metadata or cannot produce a commit SHA (read-only snapshot, exported archive), record `unknown/not a git repository` for branch and commit fields — this is a reportable state, not a fabrication target.
+
+**Checkout completeness:** detect sparse checkouts, partial exports, and vendored subsets (`git sparse-checkout list`, missing directories referenced by imports, truncated trees). A partial checkout means *absence of evidence is not evidence of absence* — capabilities implemented in un-checked-out files cannot be ruled out. Cap detection confidence accordingly, state the checkout scope in the plan, and treat unverifiable boundary layers as `blocked-on-evidence` rather than `N/A`.
 
 ### Execution access
 
@@ -131,7 +138,9 @@ Before inventorying capabilities, classify what the repository *is* relative to 
 - **Provider's own plugin fork** — an extended fork of the provider's official plugin/adapter. State whether the fork's customizations are inside or outside migration scope explicitly.
 - **Provider's own product** — the repository *is* the provider's own server, SDK, MCP server, or plugin published by the provider (e.g. the provider's official server repo, its own MCP package, its own agent plugin). The public wire contract is the product. Migrating it to Keiki inverts the repository's purpose — the correct verdict is normally **infeasible-as-specified / do-not-migrate**; only proceed if the user redefines the migration object (e.g. "add a Keiki export," "document the delta").
 - **Provider-authored host-platform plugin/template** — an official first-party plugin, channel adapter, or deployment template published by the provider for an agent host platform (Hermes, Claude Code, Eve, etc.). Consumers are external host installs, not in-repo code; the migration object is the plugin's public interface plus its wire contract. Before planning a boundary rewrite, check the **substrate/adapter-retirement path** (see §6): when the host platform has a Keiki adapter or the source provider is itself a Keiki line provider, replacing the plugin with the target's own adapter on a Keiki line may be the smallest safe migration.
-- **Deployment template / wrapper-image** — a template, wrapper, or repo whose provider boundary lives inside a pinned upstream container image, remote service, or generated artifact rather than in repo source. Repo evidence alone cannot inventory capabilities: report `blocked-on-evidence` and name the exact artifact to inspect (image tag/digest, upstream repo+commit, deployed service) before planning.
+- **Deployment template / wrapper-image** — a template, wrapper, or repo whose provider boundary lives inside a pinned upstream container image, remote service, or generated artifact rather than in repo source — *or* a hybrid where the boundary is in-repo but the agent runtime is external (e.g. a template staging an agent image plus an in-repo bridge). Repo evidence alone cannot inventory capabilities that live in the artifact: report `blocked-on-evidence` and name the exact artifact to inspect (image tag/digest, upstream repo+commit, deployed service) before planning.
+- **Catalog / plugin-host platform** — an app platform whose providers are declarative catalog entries (blocks, plugins, integrations) rather than app call sites (e.g. workflow builders, agent frameworks with provider plugins). The migration object is the catalog entry *plus* its backing implementation layer — which may live in a different package/directory or be absent from a partial checkout. Catalog entries can declare capabilities that are user-reachable but whose usage is unknowable from the repo — record them as declared-surface capabilities with usage confidence noted, not silently dropped.
+- **MCP consumer** — an app that consumes the provider's *hosted MCP server* as a remote tool source (MCP-client catalog entry, `mcp.<provider>` host) rather than calling its REST API or running its SDK. There is no in-repo wire contract beyond the tool names/params the client declares; dynamic tool discovery means the real surface is only fully knowable at runtime — cap confidence on the tool inventory and mark it unresolved. The migration question is "what replaces this remote tool source," not "rewrite these calls" — Keiki MCP exposes org operations, not messaging primitives, so MCP-consumer repos usually resolve to infeasible-as-specified unless the user approves descoping.
 
 If the repo shape is ambiguous or unprecedented, state the interpretation explicitly in the plan or ask the user before planning — do not guess silently.
 
@@ -176,6 +185,7 @@ Report exactly one or more of:
 - `Generation-irrelevant` — no generation-bound code exists (pure webhook sink, config-only)
 - `Mixed generations` — genuinely different API generations in use (not merely mixed surfaces)
 - `Mixed surfaces` — one generation spanning several distinct APIs (e.g. REST + dashboard management API + OAuth device flow); report each surface separately
+- `Hosted MCP tool surface` — the integration consumes a provider-hosted MCP server as a remote tool source; the tool inventory is only fully knowable at runtime — cap confidence on the tool surface and mark it unresolved
 - `Unknown generation`
 
 Examples include `Sendblue TypeScript SDK 3.2.1`, `Sendblue raw REST using /api/send-message`, `Linq V2`, `Linq V3`, `Mixed Linq V2/V3`, `Blooio v4`, `Photon spectrum-ts <version>`, `Photon HTTP Proxy REST`, `BlueBubbles server generation unknown`, `raw REST, unversioned`, or `webhook-ingress-only`.
@@ -207,6 +217,10 @@ When no approved source is registered, rely on repository evidence, report the a
 ## 5. Inventory active capabilities
 
 A capability is in scope only when it is reachable production behavior: active code paths, deployment configuration, stored data, or operational dependence prove the application uses it. Tests, fixtures, and mocks corroborate a capability but do not by themselves make it active; example apps, docs, and dead-but-implemented adapter methods are evidence *about* the code, not active capabilities — list them as intentionally excluded unless the user says otherwise. When the repository *is* the provider SDK/library/server (see "Repo shape"), its published surface — exports, routes, tools — is the capability set unless the user narrows it.
+
+**Declared-but-usage-unknown surfaces:** catalog blocks, plugin manifests, and registry entries can declare capabilities that are user-reachable without any in-repo call site proving use (the implementation may live in another package, be absent from a partial checkout, or be invoked by end users at runtime). Inventory them as declared-surface capabilities with usage confidence noted — do not silently drop them, and do not treat declaration alone as proven active use.
+
+**Enabled third-party tool surfaces:** an enabled MCP server, plugin, or integration declared in config (e.g. `npx -y <provider>-mcp` in an agent config) is a second outbound boundary even when dormant until credentials exist — inventory its tool surface as capabilities and give it an explicit retain/descope decision.
 
 Inspect inbound and outbound text, direct and group messaging, line selection, attachments, replies, reactions, typing, read state, effects, edits, unsends, delivery states, history or polling, SMS/RCS fallback, webhook authentication and acknowledgement, retries, idempotency, deduplication, ordering, lifecycle, quota/rate-limit semantics (per-day caps, new-contact limits, reset windows — these often drive entire subsystems), and persisted provider identifiers.
 
@@ -299,7 +313,7 @@ Any transport change must identify:
 
 A mixed target may be preferred when it preserves the source application’s existing inbound, outbound, attachment, hosting, or lifecycle boundaries with fewer application changes.
 
-When the source provider is multi-channel (mail + SMS + iMessage + voice + contacts + tunnels), produce a **channel disposition** before target selection: which channels migrate to Keiki, which stay on the source provider, which are descoped with user approval, and which are blocked. Keiki covers iMessage/SMS/RCS/WhatsApp/Telegram/Slack/agentmail/API/A2A — it has no contacts CRM, no raw voice/media API, no mailbox browsing, and no outbound A2A client. A legitimate outcome is a **split-provider architecture** (Keiki for messaging, source retained for the rest) — record it with the split-provider decision record in `keiki-targets.md`.
+When the source provider is multi-channel (mail + SMS + iMessage + voice/calls + contacts + tunnels), produce a **channel disposition** before target selection: which channels migrate to Keiki, which stay on the source provider, which are descoped with user approval, and which are blocked. Keiki's channel coverage is gated — iMessage lines are the deployable paid surface; SMS lines, phone calls, Teams, RCS, and Apple Messages for Business are dashboard-managed or early-access (see the availability table in `keiki-targets.md`); WhatsApp/Telegram/Slack/agentmail/API/A2A exist as channels but with their own plan/entitlement gates. Keiki has no contacts CRM, no raw voice/media or BYO-call API (Keiki phone calls are hosted agent voice turns on Keiki numbers, not a call-control surface), no mailbox browsing, and no outbound A2A client. A legitimate outcome is a **split-provider architecture** (Keiki for messaging, source retained for the rest) — record it with the split-provider decision record in `keiki-targets.md`.
 
 **Turn-lifecycle design is mandatory for harness targets.** Every Keiki turn has a ≤10-minute deadline and must be settled via `POST {turnUrl}/complete`. The plan must name: the turn-context owner (how outbound calls learn the active `turnUrl`/token), when `/complete` fires relative to application work, behavior for sends with no live turn, settlement on failure paths, `midTurnStrategy` choice, multi-message turn fan-out, and serverless/async continuation (`waitUntil`/`after()` vs. turn deadline). Turns are *not* the source provider's request/response model — this is the central architectural delta of every webhook→harness migration.
 

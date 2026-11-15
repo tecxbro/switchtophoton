@@ -1,0 +1,26 @@
+{
+  "name": "@elizaos/cloud-tools",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "dependencies": {
+    "@elizaos/auth": "workspace:*",
+    "@elizaos/cloud-shared": "workspace:*",
+    "@elizaos/core": "workspace:*",
+    "@elizaos/host": "workspace:*",
+    "@elizaos/plugin-elizacloud": "workspace:*",
+    "@elizaos/plugin-sql": "workspace:*",
+    "@elizaos/testing": "workspace:*",
+    "@elizaos/cloud-services-common": "workspace:*",
+    "drizzle-orm": "0.45.4"
+  },
+  "scripts": {
+    "homepage:check": "bun ./gateway/check-homepage-public-readiness.ts",
+    "homepage:dns": "bun ./gateway/sync-homepage-porkbun-dns.ts"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.0",
+    "@types/pg": "8.23.1",
+    "pg": "8.23.1"
+  }
+}

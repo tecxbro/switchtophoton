@@ -2,7 +2,8 @@
 name: switch-to-keiki
 description: >
   Switch to Keiki by inspecting and planning a parity-only replacement of an existing iMessage, SMS API,
-  messaging SDK, or messaging provider integration — for any source provider, registered or not. Use for
+  messaging SDK, messaging provider integration, or telephony/voice-agent provider boundary — for any source
+  provider, registered or not. Use for
   Switch to Keiki, migrate to Keiki, replace Sendblue,
   replace Linq, replace Photon, replace Inkbox, replace Project Blue, replace AgentPhone, replace Chert,
   replace ZeroSettle, BlueBubbles migration, Blooio migration, LoopMessage migration, iMessage-provider

@@ -49,13 +49,14 @@ Never override an explicit user-selected branch with the default.
 
 Source integration
 - Provider: <provider>
-- Repo shape: <consumer application | provider library/adapter | provider façade/MCP server/proxy | provider SDK | provisioning tooling | passive sink/webhook recorder/test harness | provider's own plugin fork | provider's own product | provider-authored host-platform plugin/template | deployment template/wrapper-image>
+- Repo shape: <consumer application | provider library/adapter | provider façade/MCP server/proxy | provider SDK | provisioning tooling | passive sink/webhook recorder/test harness | provider's own plugin fork | provider's own product | provider-authored host-platform plugin/template | deployment template/wrapper-image | catalog/plugin-host platform | MCP consumer>
+- Checkout completeness: <full repo | sparse/partial checkout — name what's missing and which capabilities are unverifiable>
 - Public API surface to preserve (library/adapter/façade repos): <exported symbols, route/tool wire contract, identifier formats, rename-vs-rewrite-vs-new-package decision, breaking-change/versioning record — or n/a>
 - Provider-boundary scope: <which providers/channels are being replaced; disposition of the rest; in/out-of-scope decision for optional or env-gated integrations>
 - Substrate check: <is the source provider itself a Keiki line provider, or does the host platform have an official Keiki adapter (@onkeiki/*)? adapter-retirement evaluated: yes/no + why>
-- Detection result: <exact SDK version | known REST API generation | known webhook generation | raw REST unversioned | raw REST against known generation | raw REST mixed endpoint generations | webhook-ingress-only | generation-irrelevant | mixed generations | mixed surfaces | unknown generation>
+- Detection result: <exact SDK version | known REST API generation | known webhook generation | raw REST unversioned | raw REST against known generation | raw REST mixed endpoint generations | webhook-ingress-only | generation-irrelevant | hosted MCP tool surface | mixed generations | mixed surfaces | unknown generation>
 - Exact SDK/API generation: <specific result; per-surface breakdown when mixed>
-- Integration style: <REST, webhook, SDK stream, WebSocket, Socket.IO, agent loop, adapter, local bridge, MCP, mixed>
+- Integration style: <REST, webhook, SDK stream, WebSocket, Socket.IO, agent loop, adapter, local bridge, MCP server, hosted-MCP consumer, catalog block, polling loop, mixed>
 - Detection confidence: <High, Medium, Low>
 - Approved agent-readable source available: <yes with URL, or no>
 - Detection evidence:

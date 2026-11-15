@@ -1,0 +1,20 @@
+{
+  "name": "chert-video-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "^22.23.2 || ^24.0.0 || ^26.0.0"
+  },
+  "scripts": {
+    "start": "node --env-file=.env.local agent.mjs start",
+    "check": "node --check chert-rooms.mjs && node --check frame-probe.mjs && node --check agent.mjs && node --check face.mjs && node --check greet.mjs && node --check card-reader.mjs && node --check card-session.mjs && node --check frame-utils.mjs && node --check vision.mjs && node --check backend.mjs",
+    "help": "node agent.mjs --help",
+    "test": "node --test 'test/*.test.mjs'"
+  },
+  "dependencies": {
+    "@livekit/agents": "1.8.0",
+    "@livekit/agents-plugin-google": "1.8.0",
+    "@livekit/rtc-node": "0.13.35"
+  }
+}

@@ -1,0 +1,9 @@
+# Extra packages for the live FaceTime agent (python3 -m chert.agent_integration dev).
+# Install on the agent server only, alongside the root requirements.txt.
+livekit-agents>=1.8,<2
+livekit-plugins-google>=1.8,<2
+opencv-python-headless
+numpy
+pillow
+httpx
+python-dotenv

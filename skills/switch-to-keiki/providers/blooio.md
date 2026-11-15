@@ -26,6 +26,7 @@ Confirm combinations of:
 - webhook header `x-blooio-signature` with `BLOOIO_WEBHOOK_SECRET` and `Idempotency-Key` send headers;
 - webhook events such as `message.received` and SDK calls such as `blooio.chats.sendMessage`;
 - **implementer/façade fingerprints** — when the repository *is* a Blooio API server or MCP wrapper rather than a consumer: compiled `operations.json`/`tools.js` generated from the OpenAPI spec, `UPSTREAM_BASE_URL`/`api.blooio.com` proxy routes, `server.json`/`mcp.blooio.com` self-identification, OAuth-authorization-server code delegating to Blooio OAuth, `bl_live_`/`bmcp_` token minting, `blooio://` resource URIs, `x-blooio-proxy` headers;
+- **dual-generation wire shapes** — real integrations mix v2 and v4 simultaneously: `chat_*` IDs route to v4 while `grp_*` IDs route to v2-style paths; v2 uses `X-From-Number` sender selection and flat event payloads while v4 uses `{id,type,created_at,data}` envelopes; webhook ingress may co-parse both; v4 surfaces include `/v4/messages`, `/v4/chats/:id/messages|read|typing|reactions` (typing has a DELETE stop), `/v4/channels/:number/settings`, and `message.failed` events — fingerprint the actual paths and ID prefixes, not just the package name;
 - `/v3` paths that are only 308 legacy redirects to `/v4` are not a second generation — distinguish real v3 usage from redirect shims.
 
 A name alone is insufficient. Confirm active calls, handlers, fixtures, or deployment configuration.
@@ -56,4 +57,5 @@ Only proven capabilities belong in the plan.
 - A unified multi-channel integration may use Blooio for more than iMessage. Do not replace it with an iMessage-only Keiki target unless the approved plan preserves or explicitly excludes every other active channel.
 - Blooio is now an official Apple Messages for Business MSP; current positioning is multi-channel, not iMessage-only.
 - Webhook signatures use `x-blooio-signature` keyed by `BLOOIO_WEBHOOK_SECRET`; verify raw bytes.
+- **Blooio is itself a Keiki line provider** — Keiki deployments can run on Blooio-backed iMessage lines. Before planning a boundary rewrite, run the substrate/adapter-retirement check (`workflow.md` §6): a Blooio-channel app on an agent host may map more cheaply to Keiki's own channel adapter on a Keiki line than to a harness-push rewrite.
 - Do not claim exact parity from unsupported fingerprints, unofficial adapters, or current assumptions.
