@@ -27,3 +27,13 @@ support for arbitrary outbound sends.
 Start at [SKILL.md](skills/switch-to-keiki/SKILL.md), see the [provider index](skills/switch-to-keiki/providers/index.md)
 and [target selector](skills/switch-to-keiki/keiki-targets.md). Run the content checks with
 `python3 -m unittest discover -s tests -v`. The checks do not need accounts or send messages.
+
+## Evidence and limits
+
+- [iMessage compatibility matrix](skills/switch-to-keiki/imessage-parity.md)
+  and [implementation recipes](skills/switch-to-keiki/recipes.md).
+- [Open-source benchmark report and runnable fixtures](benchmarks/README.md).
+- [iMessage API gaps and documentation requests](benchmarks/keiki-product-gaps.md).
+
+The skill must stop on an active blocker. A credential swap does not preserve
+a direct-send API, receipt stream, iPhone feature, or line identity by itself.

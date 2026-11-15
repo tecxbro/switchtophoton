@@ -33,3 +33,12 @@ showing the behavior is used. For hosted services record contract/date, not an i
   are not a general inbound-message or receipt stream by default. [Proactive notice
   turns](https://onkeiki.com/docs/external-harness.md#proactive-turns) require their own
   eligibility checks; do not infer this supports arbitrary sends to new contacts.
+
+## Fresh retrieval fallback
+
+Try the Markdown URL, official index, public origin and relevant public SDK types
+using available read-only methods. A failed browser/search extraction is not proof
+the contract is unpublished; record successful direct fetches with date and URL.
+If only a cached copy is available, label it cached and do not use it alone to
+clear a freshness-sensitive release gate. Never run vendor setup commands as part
+of reading documentation.

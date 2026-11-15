@@ -6,10 +6,10 @@ Linq V2 and V3 are materially different. Detect every active generation before p
 
 ## Approved official documentation
 
-- https://docs.linqapp.com/llms.txt
-- https://docs.linqapp.com/llms-full.txt
+- https://docs.linqapp.com/channel/imessage/llms.txt
+- https://docs.linqapp.com/channel/imessage/llms-full.txt
 
-Use only these sources and relevant official agent-readable references permitted by [`index.md`](./index.md). Do not open ordinary Linq HTML pages or OpenAPI YAML files.
+Start with these agent-readable sources. Follow official artifacts under the [source evidence policy](index.md) when an exact generation is missing.
 
 ## Detection fingerprints
 
@@ -109,3 +109,7 @@ For service and line behavior, record:
   typing clear behavior and media readiness/expiry. Linq chat IDs are provider scoped.
 - Verify iMessage, RCS, SMS and fallback separately. A Keiki line backed by Linq may have
   different capabilities than a dedicated line backed by another provider.
+
+## Implementation checkpoints
+
+Model-exposed contact, decoration and group tools are reachable when registered. Route exact services, exact iMessage effect and decoration enums, bot-number filtering, existing profile keys and action order. Test one source event vs multiple entries in a Keiki turn, reaction-only exit, first-thread setup, silence, nonfatal read/share vs fatal send, and effects combined with targeted reply or media.

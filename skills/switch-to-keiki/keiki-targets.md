@@ -5,7 +5,7 @@ Match the existing behavior, not the name of the old provider API.
 
 | Existing architecture | Candidate | What to prove |
 | --- | --- | --- |
-| App owns the agent loop and receives HTTP events | [External push harness](https://onkeiki.com/docs/external-harness.md) | Signed asynchronous turns, durable acceptance (202), dedupe, per-turn replies/actions and completion. A turn is not a raw event feed. |
+| App owns the agent loop and receives HTTP events | [External push harness](https://onkeiki.com/docs/external-harness.md) | Signed asynchronous turns, app-owned durable acceptance (any 2xx), dedupe, per-turn replies/actions and completion. A turn is not a raw event feed. |
 | Existing runtime cannot accept inbound pushes | [External relay or inbox](https://onkeiki.com/docs/external-harness.md#relay-mode) | Connectivity, worker lifetime, claims/leases, ordering and behavior while offline. Do not silently add a long-running process to serverless hosting. |
 | Existing app uses AI SDK, Eve or Flue | [AI SDK](https://onkeiki.com/docs/ai-sdk.md), [Eve](https://onkeiki.com/docs/eve.md), or [Flue](https://onkeiki.com/docs/flue.md) adapter | Compatible version, hosting/runtime support, exact event/arrival semantics and app-owned state. Pin exact resolved versions. |
 | App already hosts its own loop and an AgentKit handler is a compatible boundary | [Self-hosted AgentKit](https://onkeiki.com/docs/sdk.md) | Confirm `kit.serve()` contract, serving runtime, persistence and channel routing. Do not substitute this for external harness without comparing both. |

@@ -6,7 +6,7 @@ Use this file only after repository evidence indicates Sendblue.
 
 - https://docs.sendblue.com/llms.txt
 
-Begin with the official `llms.txt`. Follow only relevant official agent-readable references that also satisfy the policy in [`index.md`](./index.md). Do not open ordinary Sendblue HTML documentation as a substitute.
+Start with the official index, then consult pinned official SDK/adapter source and tests or relevant official documentation under the [source evidence policy](index.md). Current docs do not prove behavior of an older adapter.
 
 ## Detection fingerprints
 
@@ -68,3 +68,7 @@ Only proven capabilities belong in the plan.
 - Current Sendblue features not used by the repository are out of scope.
 
 A Sendblue port is separate from API cutover. Verify account eligibility, paperwork, fees, lead time and whether the old subscription must stay active with both providers before any cutover.
+
+## Implementation checkpoints
+
+Distinguish direct Sendblue from Chat SDK adapter/durable workflow. Check new mention/subscribed-message dispatch, workflow inputs, thread rehydration, reply path, receiving-line allowlist and independent status callbacks. A thread ID is not a Keiki turn credential. Test one workflow per message after retry and no dispatch on a status callback.

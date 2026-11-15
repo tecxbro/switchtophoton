@@ -9,7 +9,7 @@ absence. Never use competitor docs as proof of Keiki parity.
 | Source | Reference | Key distinction |
 | --- | --- | --- |
 | Linq | [Linq migration notes](linq.md) | Pin V2 vs V3 or mixed; inventory receipt and chat schemas separately. |
-| Photon | [Photon migration notes](photon.md) | Distinguish Spectrum cloud vs local and direct API/webhook paths. |
+| Photon | [Photon migration notes](photon.md) | Distinguish Spectrum cloud/local, Flux gRPC, Chat SDK, and direct API/webhook paths. |
 | Sendblue | [Sendblue migration notes](sendblue.md) | Separate incoming and status callbacks, SMS fallback and porting. |
 | Inkbox | [Inkbox migration notes](inkbox.md) | Inspect identity, shared vs dedicated routing and webhooks. |
 | Blooio | [Blooio migration notes](blooio.md) | Pin v2/v4 per route; preserve other active messaging channels. |

@@ -38,3 +38,13 @@ Inventory only active behavior, including:
 ## Migration traps
 
 Consent and outbound-eligibility rules may be product behavior, not provider setup. Sender identity and pooling may also be visible behavior. Do not remove either silently. Any unresolved generation or capability mapping must be a blocker in the plan.
+
+## Implementation checkpoints
+
+Inventory aliases and invite/deep link eligibility separately from payloads, callback states and sandbox. Use exact clock windows where reachable. Verify old aliases vs Keiki onboarding, callback retries, shared line ownership, unconnected recipient and media expiry.
+
+Also detect `https://a.loopmessage.com/api/v1` in pinned newer clients. For a
+reaction, distinguish the notification ID (e.g. `webhook_id`) from the
+reacted-to message ID. Preserve structured audio transcription separately from
+attachment bytes or model-facing enriched text. Check provider-selectable
+examples rather than claiming that LoopMessage is the active deployment.

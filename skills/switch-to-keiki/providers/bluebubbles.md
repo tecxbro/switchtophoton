@@ -9,7 +9,7 @@ Use this file only after repository evidence indicates a BlueBubbles server inte
 - https://github.com/BlueBubblesApp/bluebubbles-docs/blob/master/server/developer-guides/rest-api-and-webhooks.md
 - https://github.com/BlueBubblesApp/bluebubbles-docs/blob/master/server/SUMMARY.md
 
-Use only official Markdown files permitted by [`index.md`](./index.md). Do not use GitBook or ordinary HTML documentation links.
+Prefer the official source and versioned docs under the [source evidence policy](index.md). Determine whether the active server is a fork and whether the official contract matches it.
 
 ## Detection and server-generation evidence
 
@@ -46,3 +46,14 @@ Inventory only active behavior, including:
 Moving off a Mac relay changes hosting, trust, data access and local availability.
 Prove that the selected Keiki contract covers any Private API behavior. Keep local
 fallback/rollback separate and do not remove the Mac relay before approved cutover.
+
+## Implementation checkpoints
+
+Distinguish bot, UI/history consumer, private relay and app-owned sender using the REST/socket boundary. Private local behavior is not implied by Keiki turn support. Test Mac reconnect/history catch-up, self-echo, structured chat and message GUID mapping, attachment readability and any private native action.
+
+The [official server](https://github.com/BlueBubblesApp/bluebubbles-server)
+is not the deployer's consuming bot. Pin both producer and consumer when a fork
+or SDK is involved. Inspect server REST, Socket.IO, local chat database and
+Private API separately; they share GUIDs but have different availability and
+privacy dependencies. Never run a Mac relay or access local Messages history
+just to classify the API.
