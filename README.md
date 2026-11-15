@@ -26,7 +26,7 @@ Switch to Keiki follows a strict migration process:
 2. Detects the existing messaging provider.
 3. Identifies the exact SDK version, REST API generation, webhook generation, or mixed integration in use.
 4. Inventories only the messaging capabilities already used by the application.
-5. Selects the Keiki surface that most closely preserves the current architecture — external harness (push, relay, or inbox), cloud-served or self-hosted agent, developer REST API and partner deployments, agent API gateway, event webhooks, MCP, or a framework adapter.
+5. Selects the Keiki surface that most closely preserves the current architecture — external harness (push, relay, or inbox), cloud-served or self-hosted agent, developer REST API and partner deployments, agent API gateway, event webhooks, MCP, or a framework adapter — and flags any Keiki capability that is documented but not currently available (plan-gated, waitlist, early-access, dashboard-only, or add-on).
 6. Produces a complete migration plan with a capability evidence appendix.
 7. Waits for explicit user approval before editing the repository.
 8. Replaces only the approved provider boundary.
@@ -60,6 +60,8 @@ Unless the approved plan explicitly says otherwise, the skill preserves:
 - Features unrelated to the provider migration
 
 ## Supported source providers
+
+Tell the skill where you're coming from — name the provider and it confirms the exact SDK version, API generation, and active capabilities from repository evidence, then maps them to Keiki. The registered files below are preferred references, not a closed list: any messaging provider works through generic detection.
 
 The skill includes focused migration guidance for:
 

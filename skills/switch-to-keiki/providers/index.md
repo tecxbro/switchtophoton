@@ -76,13 +76,16 @@ When retrieval fails:
 
 ## Unknown or custom providers
 
-If no provider matches:
+The registered files above are preferred references, not a closed list. The skill supports any messaging provider.
 
-1. identify the provider from locked package metadata, imported API shape, host ownership, deployment configuration, and wire payloads;
-2. use an external source only when it meets this policy;
-3. report exact evidence, generation result, and confidence;
-4. inventory capabilities from active repository behavior;
-5. do not execute on low-confidence detection without explicit risk acceptance;
-6. do not add a permanent provider reference until official agent-readable documentation and fingerprints are verified.
+If the user names a provider that has no registered file:
 
-Do not confuse similarly named products. Sendblue is not Sendinblue/Brevo. ZeroSettle's iMessage API (`portal.zerosettle.io`/`phonetw.in`) is unrelated to the ZeroSettle payments product (`docs.zerosettle.io`). Photon as a *source* provider is unrelated to Keiki as the *target* — Keiki iMessage lines may themselves be Photon-backed, which is a target-side detail, not source detection.
+1. treat the user-provided name as the detection hypothesis and confirm or correct it from repository evidence;
+2. identify the provider from locked package metadata, imported API shape, host ownership, deployment configuration, and wire payloads;
+3. discover official agent-readable documentation for that provider (`llms.txt`, `llms-full.txt`, or official `.md` pages) and use it only when it satisfies this policy;
+4. report exact evidence, generation result, and confidence;
+5. inventory capabilities from active repository behavior;
+6. do not execute on low-confidence detection without explicit risk acceptance;
+7. note the missing registered reference file in the plan so the gap is visible rather than silent.
+
+A provider name or comment alone is not sufficient — always confirm active runtime or test evidence. Do not confuse similarly named products. Sendblue is not Sendinblue/Brevo. ZeroSettle's iMessage API (`portal.zerosettle.io`/`phonetw.in`) is unrelated to the ZeroSettle payments product (`docs.zerosettle.io`). Photon as a *source* provider is unrelated to Keiki as the *target* — Keiki iMessage lines may themselves be Photon-backed, which is a target-side detail, not source detection.

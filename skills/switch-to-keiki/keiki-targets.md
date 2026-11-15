@@ -70,6 +70,29 @@ Choose each layer independently while preserving the existing application archit
 - Proactive verbatim sends do not have a raw REST endpoint; use a turn (`/messages`), the API gateway, or the agent-mediated `notice` endpoint.
 - Imported iMessage lines carry no provider-verified sender evidence, so identity webhooks and scoped tools do not run on them.
 
+## Availability and entitlement check
+
+Keiki documents several surfaces that are not generally available or deployable today. Verify availability for the target organization before selecting any surface, and flag gated capabilities in the plan instead of assuming access.
+
+| Surface or capability | Availability constraint | Evidence |
+|---|---|---|
+| Everything except a bought iMessage line | Requires an active paid plan; `plan_required` on connect | `docs/channels.md`, `docs/pricing.md` |
+| API gateway (`api` channel, OpenAI/Anthropic-compatible) | Plan-gated: `402 plan_required`; `503 billing_unavailable` when billing cannot confirm | `docs/agent-api.md` |
+| A2A channel | Plan-gated: `402 plan_required` | `docs/a2a.md` |
+| `channels` OAuth scope / agent-channels API | Requires plan; separate OAuth issuer | MCP docs |
+| iMessage lines | Per-line monthly billing by plan tier; deployment `lines` may return `needs_payment` + `checkoutUrl`; On-request lines not charged at request time | `docs/partner-deployments.md`, `docs/pricing.md` |
+| SMS | Not a deployment channel — lines are bought and attached on the dashboard Channels page | `docs/setup.md` |
+| Teams, phone calls, Apple Messages for Business, RCS, shared iMessage number | Dashboard-managed; absent from the partner-deployment channel spec | `docs/channels.md`, `docs/partner-deployments.md` |
+| RCS, Apple Messages for Business | Early access / request-access only | `docs/channels.md` |
+| `send_widget` / Keiki Vault iMessage apps | Dedicated Keiki-bought line + Dynamic UI add-on + 1:1 chat only; not groups, held-back, steered, or detached turns | `docs/imessage-apps.md` |
+| Group chats | Dedicated `photon`/`blooio` line + `features.groupChats` enabled; `linq` lines unsupported; shared pool ignores groups | `docs/channels.md` |
+| Sandbox organizations | MCP works without a plan but turns are capped (cheap model, fewer steps, no MCP tools) | MCP docs |
+| Organization signup | Waitlist-gated (`/api/webapp/auth/waitlist`); AgentID signup path skips waitlist | auth docs |
+| Imported iMessage lines | Identity webhooks and scoped tools do not run; turns run without a principal | identity docs |
+| Delivery status / read receipts | Tracked internally and inspectable via the delivery ledger; no public event API | `docs/webhooks.md` |
+
+Record each selected surface's availability status in the plan: `available`, `plan-gated`, `entitlement-gated`, `early-access`, `dashboard-only`, `add-on-required`, or `unavailable` — with the evidence. A capability that exists in documentation but fails this check is flagged as documented-but-unavailable, never silently planned or silently dropped.
+
 ## Selection rules
 
 1. Prefer the smallest architectural change.
@@ -99,6 +122,7 @@ Choose each layer independently while preserving the existing application archit
     - the additional verification required;
     - why the change is safer than preserving the current architecture.
 21. Prefer the Keiki architecture that produces the smallest safe migration.
+22. Verify every selected Keiki surface is available for the target organization's plan, region, and entitlements before planning. Never plan against a documented-but-unavailable surface without flagging it, and never silently substitute a different surface for a gated one — surface the gate and let the plan record the approved workaround.
 
     Compare:
 

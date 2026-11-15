@@ -94,6 +94,8 @@ Never override an explicit user-selected branch with the default.
 
 ## 2. Detect the source provider
 
+If the user named the source provider, treat that name as the detection hypothesis: confirm or correct it with the fingerprints below instead of restarting discovery from zero. A named provider without a registered reference file is not a blocker — proceed with generic detection and mark confidence accordingly.
+
 Search the complete repository, including:
 
 - lockfiles and package manifests;
@@ -108,7 +110,7 @@ Search the complete repository, including:
 
 A provider name or comment alone is not sufficient. Confirm active runtime or test evidence.
 
-Read [`providers/index.md`](./providers/index.md), then only the matching provider file.
+Read [`providers/index.md`](./providers/index.md), then only the matching provider file. When no file matches — including a user-named provider that is not registered — derive fingerprints, generation signals, and capability inventory from repository evidence alone, consult official agent-readable documentation discovered for that provider when it satisfies the index policy, and report the missing reference file as a plan note rather than a silent gap.
 
 ## 3. Detect exact SDK or API generation
 
@@ -201,6 +203,8 @@ For installable Keiki packages, record the exact planned package version and exp
 
 For hosted Keiki services, record the service, endpoint, public API or event contract, official documentation source, and retrieval date. Do not invent a hosted-service version when none is published.
 
+For every candidate Keiki surface, verify current availability before selecting it: active-plan requirement, waitlist or invite gating, early-access status, dashboard-only management, entitlement or add-on requirements, and region limits. Keiki documents several surfaces that are not generally deployable today — record each selected surface's availability status and flag documented-but-unavailable capabilities in the plan rather than assuming access or silently substituting another surface. See [`keiki-targets.md`](./keiki-targets.md) for the known availability constraints.
+
 Architecture preservation remains the default.
 
 A capability supported by a hosted Keiki agent does not by itself justify replacing an existing REST or HTTP-webhook boundary with a different transport.
@@ -274,7 +278,8 @@ Before writing the plan:
 - compare group participant semantics;
 - compare source and Keiki identifiers;
 - map every actively reachable closed reaction, effect, service, status, and operation value;
-- document conversion rules for open-ended values.
+- document conversion rules for open-ended values;
+- confirm every selected Keiki surface is actually available for the target organization — plan, entitlement, region, add-on, and waitlist gates included — and flag documented-but-unavailable capabilities explicitly.
 
 Do not perform an unbounded search across every Keiki repository.
 

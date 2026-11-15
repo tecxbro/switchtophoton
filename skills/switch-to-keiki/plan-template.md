@@ -99,6 +99,10 @@ Keiki target
   - <retrieved, published but inaccessible from the current environment, confirmed missing, or retrieved but insufficient>
 - Documentation retrieval details:
   - <source, retrieval date, and exact failure when applicable>
+- Surface availability:
+  - <surface>: <available | plan-gated | entitlement-gated | early-access | dashboard-only | add-on-required | unavailable — gate evidence>
+- Documented but unavailable Keiki capabilities:
+  - <capability, its gate, and how the plan handles it — flagged workaround or approved exclusion, or none>
 - Mixed-target requirement:
   - <why multiple Keiki surfaces produce a smaller or safer migration, or none>
 - Architecture-preservation comparison:
@@ -406,6 +410,7 @@ Blockers
 - A transport change must include an architecture-preservation comparison.
 - A hosted Keiki agent loop cannot be selected for a REST or webhook application without proving lower total migration risk.
 - A mixed target must identify responsibility, event ownership, connection ownership, lifecycle ownership, duplicate prevention, retry behavior, and shutdown behavior.
+- Every selected Keiki surface must have a recorded availability status; documented-but-unavailable capabilities must be flagged with their gate, never silently planned or silently substituted.
 - Every actively reachable closed value must be mapped individually.
 - Every active open-ended value must have a conversion rule and representative, invalid, and unknown-value behavior.
 - A documentation retrieval failure must not be represented as documentation absence.

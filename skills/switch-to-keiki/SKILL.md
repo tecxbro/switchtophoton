@@ -2,12 +2,15 @@
 name: switch-to-keiki
 description: >
   Switch to Keiki by inspecting and planning a parity-only replacement of an existing iMessage, SMS API,
-  messaging SDK, or messaging provider integration. Use for Switch to Keiki, migrate to Keiki, replace Sendblue,
+  messaging SDK, or messaging provider integration — for any source provider, registered or not. Use for
+  Switch to Keiki, migrate to Keiki, replace Sendblue,
   replace Linq, replace Photon, replace Inkbox, replace Project Blue, replace AgentPhone, replace Chert,
   replace ZeroSettle, BlueBubbles migration, Blooio migration, LoopMessage migration, iMessage-provider
   migration, messaging-provider replacement, messaging SDK migration, SMS API migration, provider parity
   migration, Keiki agent migration, Keiki external harness migration, Keiki partner deployment migration,
-  Keiki MCP migration, or Vercel Chat SDK messaging-adapter migration. Detect the exact source SDK version,
+  Keiki MCP migration, or Vercel Chat SDK messaging-adapter migration. When the user names the source
+  provider, treat it as the detection hypothesis and confirm it with repository fingerprints instead of
+  restarting discovery. Detect the exact source SDK version,
   REST API generation, webhook generation, mixed generation, active capabilities, and architecture before
   selecting a Keiki surface. Remain read-only until a complete plan is shown and the user's latest message
   explicitly contains the exact approval phrase. Execute only approved behavior, stop for scope changes,
@@ -88,6 +91,8 @@ These rules are mandatory:
 22. Do not expose, copy, print, or commit real secrets.
 23. Verify the completed implementation against the approved plan.
 24. Do not claim completion while required behavior is blocked or unverified.
+25. When the user names the source provider, use it as the detection hypothesis and confirm or correct it with repository evidence. Do not ignore a user-named provider, and do not require a registered provider file to proceed.
+26. Flag every Keiki capability that is documented but not currently available — plan-gated, waitlist, early-access, dashboard-only, entitlement-gated, add-on-required, or region-limited — in the plan instead of silently planning against it or silently substituting another surface.
 
 ## Mandatory decision order
 
@@ -108,6 +113,7 @@ Inspect repository
 → select outbound Keiki transport
 → select attachment transport
 → select applicable lifecycle and error model
+→ verify Keiki surface availability (plan, entitlement, region, add-on)
 → compare architecture preservation and migration risk
 → prove each capability mapping
 → identify writable execution destination and branch

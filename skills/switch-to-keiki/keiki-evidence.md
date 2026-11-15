@@ -33,6 +33,18 @@ Do not invent a hosted-service version when Keiki does not publish one.
 
 A repository package version is not automatically the version of the hosted deployment.
 
+For every Keiki surface considered, also record its availability status:
+
+- `available`;
+- `plan-gated`;
+- `entitlement-gated`;
+- `early-access`;
+- `dashboard-only`;
+- `add-on-required`;
+- `unavailable`.
+
+Include the gate evidence (plan requirement, entitlement, region, add-on, waitlist, or dashboard step). A surface documented in Keiki docs but failing this check must be flagged as documented-but-unavailable in the plan — never silently planned against and never silently substituted.
+
 ## 2. Evidence order
 
 Use the hierarchy appropriate to the target.
@@ -320,6 +332,7 @@ A plan is also blocked when:
 - a transport change lacks an architecture-preservation comparison;
 - a hosted Keiki agent loop is selected for a REST or webhook application without proving lower total migration risk;
 - a mixed target lacks responsibility and lifecycle ownership;
+- a selected Keiki surface is documented but not confirmed available for the target organization's plan, region, or entitlements, and the plan does not flag the gate;
 - repository write access or a writable execution destination remains unresolved;
 - documentation retrieval failure is represented as proof that documentation does not exist.
 
