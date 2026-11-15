@@ -211,7 +211,7 @@ Decide each boundary before proposing a combined architecture:
 | Boundary | Establish before approval |
 |---|---|
 | Line and identity | Exact provider, line type, account eligibility, sender reuse, inbound routing, group mode, conversation identity and consent. A supported import or connection does not imply history or GUID transfer. |
-| Inbound | Push, relay or inbox external harness, hosted agent, or a retained source route. Map raw events to turn messages, arrivals, reactions, consent or other separately documented surfaces. Account for gating, batching, held-back turns and attribution. |
+| Inbound | Push, relay or inbox external harness, hosted agent, or a retained source route. Map raw events to turn messages, arrivals, consent or other available surfaces. Account for gating, batching, held-back turns and attribution. Keep reaction triggers with the source workflow under the current rollout. |
 | Turn owner | Existing deterministic handler or model loop, Keiki-hosted loop, or self-hosted AgentKit. Identify the caller, deadline, state and who owns completion. |
 | Outbound | Turn-scoped message or action, eligible existing-conversation notice, or retained provider send. Prove first contact separately. Capture behavior when a send was accepted, rejected or gave an ambiguous result. |
 | Media and native operations | Attachments and scoped IDs, upload and download contract, native payloads and UI, supported line/transport combinations. |
@@ -220,6 +220,8 @@ Decide each boundary before proposing a combined architecture:
 Compare affected files, hosting, runtimes, dependency versions, credential roles, lifecycle and operational risk. Verify the selected public types and demo code against the pinned artifact. Record the exact community framework or adapter if used and confirm it imports under the supported runtime in a clean project before relying on it. Use [the raw external harness recipe](./examples/external-harness.md) when an adapter is unsuitable.
 
 Use separate namespaces for provider and Keiki IDs until a compatible mapping is proven. If part of the original integration remains, specify the owner of each recipient/line/flow, subscription and outbound path. Prove that isolation avoids duplicate sends, lost events and inconsistent opt-outs, even during retry or rollback. Where two writers or subscribers cannot safely share a line, block the affected cutover until ownership is resolved.
+
+Apply the [current rollout exclusions](./imessage-capabilities.md#current-migration-scope) before requesting approval. If a source reaction, sticker, or other unavailable operation is interleaved with an otherwise supported reply in the same conversation, keep the whole affected workflow with the original provider until a safe boundary is proven or the user approves changed behavior. Show exactly which prompts, tools, triggers and recipient-visible results would change.
 
 ## 7. Prove target capability parity
 

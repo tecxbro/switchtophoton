@@ -2,7 +2,9 @@
 
 Switch to Keiki is a portable Agent Skill for moving an existing **iMessage integration** to [Keiki](https://onkeiki.com/docs). It works with coding agents such as Codex, Claude Code, Cursor, OpenCode, and GitHub Copilot.
 
-The skill traces the provider boundary in the application you give it, finds the actual SDK or API generation, and maps each active behavior to a Keiki line, runtime and public operation. It produces a reviewable migration plan, implements the approved scope, and verifies the result. Full replacement requires evidence for every required behavior. A supported inbound agent can be a good candidate even when first contact, stickers, history access, or other raw provider operations require a separate decision.
+The skill traces the active provider integration in your app, proposes a supported Keiki path, and implements the approved scope. For example, Keiki can deliver signed turns to an existing inbound text agent. The app can keep its logic and send text replies through the turn API.
+
+Native iMessage reactions and stickers are unavailable for this migration. If the app relies on either, a full switch is blocked. The plan can retain an independently routed workflow on the existing provider, or propose a clearly labeled change for you to approve. An emoji reply and an image attachment are changes to what the recipient sees.
 
 ## Install
 

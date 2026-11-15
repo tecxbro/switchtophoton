@@ -28,7 +28,7 @@ Reviewed 2026-11-14. Start with the [Photon LLM index and version indicators](ht
 | Spectrum `[space, message]`, `space.id`, `message.id`, `message.sender?.id` and `message.platform` | Use `agentId`, `conversationId` and scoped `messages[].messageId` for new work. Resolve the app's sender and tenant only from documented captured target context. Preserve source platform split and opaque IDs as old-system references. |
 | Stable `message.content.type`, `message.content.text` and native attachment `read()` | Map text to `messages[].text`; use `content` for model-ready annotations. Read `messages[].attachments` through its signed URL or the authenticated turn route while the turn is open. Check grouped parts, content types, file readiness and expiry where active. |
 | Beta public event `id`, webhook `webhook-id` or Socket.IO receive cursor | Deduplicate authenticated Keiki dispatch by `turnId` and its sends by stable idempotency keys. Arrival sequences belong to an open turn. Verify the old project-event audit/recovery boundary separately. |
-| Native reply, reaction, or group destination | Cite the target turn's `messageId` for a native reply or reaction. The turn is pinned to its conversation and line. Group recipient state and the old project chat GUID remain separate from Keiki IDs. |
+| Native reply, reaction, sticker, or group destination | Use the target turn's scoped `messageId` for a native reply. Keep native reactions and stickers on the Photon workflow, or block the dependent switch. The turn is pinned to its conversation and line. Group recipient state and the old project chat GUID remain separate from Keiki IDs. [Current migration scope](../imessage-capabilities.md#current-migration-scope) |
 
 ## Determine how much can move
 

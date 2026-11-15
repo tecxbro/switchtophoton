@@ -371,6 +371,7 @@ Verification plan
 
 Blockers
 - <every unsupported, uncertain, or non-equivalent capability, or none>
+- <for each active reaction or sticker dependency: retained source owner and isolated scope, full-switch blocker, or explicitly proposed behavior change>
 - <for Low confidence: exact risk that must be explicitly accepted before execution>
 - Do not classify a capability as unsupported solely because it is absent from one Agent Skill, README, example, or documentation page.
 - Unsupported-capability investigation must follow the bounded escalation in keiki-evidence.md.

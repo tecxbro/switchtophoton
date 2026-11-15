@@ -101,7 +101,7 @@ Verify the selected mode with fixture or integration evidence:
 - Test no-send conditions such as held-back, steered, cancelled and expired turns. Corroborate documented semantics before testing the exact mode.
 - Exercise arrival batching, source-ID mapping, correct sender attribution, ordering and completion, including an arrival at the completion boundary if the app enables steering.
 - Test stable idempotency per logical send, a duplicate success, an ambiguous send failure, a terminal `recipient_reply_required` or consent block, and safe retry or shutdown. Never retry an uncertain send using a fresh key merely because the first request failed.
-- Inspect signed reaction/consent events and their acknowledgement and deduplication separately when used.
+- Inspect signed consent events and their acknowledgement and deduplication separately when used. For retained reaction and sticker paths, verify the source provider still owns those events and sends. If an approved behavior change removes either feature, verify that stale prompts, tools and callbacks cannot invoke it in the Keiki flow.
 
 ### Keiki agent, API, callbacks and retained surfaces
 
