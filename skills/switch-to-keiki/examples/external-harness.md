@@ -25,7 +25,7 @@ For Ed25519 verification, get the Keiki public key with the matching `kid` from 
 2. Validate the event type and configured agent binding. For a `keiki.turn`, take `turnId`, `conversationId` and `keiki.turnUrl` from the authenticated body and `Keiki-Turn-Token` from the dispatch header. Check that the turn ID agrees with `Keiki-Turn-Id` and that the turn URL is on the expected Keiki origin. Use the bearer only for that turn while its authorization is live. Keep it out of logs, redirects and outbound requests to any other origin.
 3. Accept work durably once per agent and turn ID, then answer `202`. Run the original application behavior from the mapped turn messages and history. Honor held-back and silent state. Handle signed cancellation and any arrival sequence the application is configured to consume. Dispatch acceptance and the later turn completion are separate acknowledgements. [Turn request](https://onkeiki.com/docs/external-harness#turn-request), [Mid-turn arrivals](https://onkeiki.com/docs/external-harness#mid-turn-arrivals), [Completion](https://onkeiki.com/docs/external-harness#completion-and-errors)
 
-Consent events have no turn to complete. Match the documented event identity and delivery semantics, and acknowledge consent only after durable acceptance. The public harness schema also describes reaction events, which are excluded from the current iMessage migration scope. [Consent webhooks](https://onkeiki.com/docs/webhooks#verify-and-acknowledge), [Current migration scope](../imessage-capabilities.md#current-migration-scope)
+Consent and reaction notifications have no turn to complete. Match the documented event identity and delivery semantics, and acknowledge consent only after durable acceptance. An inbound Tapback can be feedback for the app. Prove a separate Keiki send context before mapping a workflow that replies automatically to it. [Consent webhooks](https://onkeiki.com/docs/webhooks#verify-and-acknowledge), [Reaction events](https://onkeiki.com/docs/external-harness#reaction-events)
 
 Keep the source app's text and prompt boundary. Keiki supplies both verbatim `messages[].text` and annotated `content` for model-aware native replies, along with optional `screening.flagged`. Preserve which fields are treated as untrusted user content. If the migration adopts the annotations or prompt guard, inspect how the selected adapter passes them and test flagged input, attachments and the source's existing prompts and tools. [Turn request](https://onkeiki.com/docs/external-harness#turn-request)
 
@@ -42,6 +42,20 @@ Authorization: Bearer kts1.<claims>.<signature>
 Bind job admission and send ownership to the verified agent and turn identity. A process-local deduplication set cannot establish cross-worker ownership. Use the app's verified durable execution or shared storage primitives, test an enqueue failure and duplicate execution, and define who may retry completion. Keep success, failure and ambiguous delivery states separate.
 
 ## Deliver a reply and complete the turn
+
+### Replace a provider-specific reaction tool
+
+When the contact asks the agent for a thumbs-up, use the Keiki built-in reaction. A hosted agent sees the incoming message ID and can attach the Tapback. For an external agent, expose `react_to_message` from `turn.keiki.mcpUrl` when it is available, or use the equivalent turn action below. Bind the action to the target message in the current conversation and remove the old provider-specific tool and client. Check that the recipient sees 👍 attached to the intended bubble. [Hosted iMessage actions](https://onkeiki.com/docs/cloud-agents#imessage), [Native channel actions](https://onkeiki.com/docs/external-harness#native-channel-actions)
+
+```http
+POST {turnUrl}/actions
+Authorization: Bearer {turnToken}
+Content-Type: application/json
+
+{"action":"react","messageId":"{keikiMessageId}","emoji":"👍","idempotencyKey":"{stableLogicalActionId}"}
+```
+
+### Send text and files
 
 The authenticated event supplies `{turnUrl}` and `{turnToken}`. The application chooses a stable idempotency key for each logical message and reuses it if processing resumes. For a native threaded reply, use an active Keiki message ID from the turn. Omit `replyToMessageId` for a plain reply. A screen or bubble `effect` is a separate send option that cannot share a request with `replyToMessageId`. [Turn-scoped API](https://onkeiki.com/docs/external-harness#turn-scoped-api)
 

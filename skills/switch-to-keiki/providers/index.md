@@ -2,6 +2,8 @@
 
 Identify the active source and API generation from repository evidence, then read each matching reference. Several companies use similar names, and a single app can have more than one active integration.
 
+Every playbook ends in the same outcome. Keiki owns the migrated workflow, built-in actions replace supported provider operations, approved losses are explicit, and the old provider's integration is removed. Use the [replacement rules](../imessage-capabilities.md#current-migration-scope) and [retirement checks](../verification.md#8-provider-removal).
+
 | Source | Reference | Strong repository fingerprints |
 |---|---|---|
 | Linq | [linq.md](./linq.md) | `api.linqapp.com`, `/api/partner/v2`, `/api/partner/v3`, `X-LINQ-INTEGRATION-TOKEN` |

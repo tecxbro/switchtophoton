@@ -37,6 +37,8 @@ Checked on 2026-11-14 with separate agents given the skill, a pinned checkout an
 
 ### Nitro code trial
 
+This historical trial isolated the Keiki path behind a local provider switch to verify the new route. It established evidence for Keiki's text turn path. Complete provider retirement is a separate acceptance check in the current skill. See [provider removal verification](../skills/switch-to-keiki/verification.md#8-provider-removal).
+
 The generated application adds a signed Nitro route at `/api/webhooks/keiki`, backed by a local durable workflow. It validates the signature, freshness, agent and turn bindings, then queues eligible plain-text inputs. A worker claims the turn, calls the original reply generator and tools, sends with a stable idempotency key, and reports completion after the work settles. The Sendblue route remains the default until trial mode is enabled. The original generator, tool definitions and dependency lockfile matched upstream.
 
 In addition to the 21 fixtures, a loopback run booted the compiled Nitro app and the real local Vercel Workflow runtime. A deny-by-default HTTP interceptor returned fake responses for the AI gateway and Keiki, and the application executed its actual `getCurrentTime` tool. A signed text dispatch and replay produced one typing request, one formatted reply with a stable action key, and one completion. A held-back turn completed without a model call or send. The app rejected unsigned dispatch and disabled the Sendblue receiver in trial mode. The parent independently reran the build artifact's loopback check, typecheck, lint and fixture suite.

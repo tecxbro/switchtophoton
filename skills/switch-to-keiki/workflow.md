@@ -204,24 +204,24 @@ For installable Keiki packages, record the exact planned package version and exp
 
 For hosted Keiki services, record the service, endpoint, public API or event contract, official documentation source, and retrieval date. Do not invent a hosted-service version when none is published.
 
-Read [Keiki target selection](./keiki-targets.md) and the [iMessage capability matrix](./imessage-capabilities.md). Choose the smallest design that preserves the active behavior. Keiki owns channel routing and delivery. A target can preserve the app's existing turn loop with an external harness, or move an explicitly approved part of the loop into a hosted or self-hosted agent.
+Read [Keiki target selection](./keiki-targets.md) and the [iMessage capability matrix](./imessage-capabilities.md). Choose the smallest complete provider replacement that preserves the active behavior or explicitly lists it for removal. Keiki owns channel routing and delivery. A target can preserve the app's existing turn loop with an external harness, or move an explicitly approved part of the loop into a hosted or self-hosted agent.
 
 Decide each boundary before proposing a combined architecture:
 
 | Boundary | Establish before approval |
 |---|---|
 | Line and identity | Exact provider, line type, account eligibility, sender reuse, inbound routing, group mode, conversation identity and consent. A supported import or connection does not imply history or GUID transfer. |
-| Inbound | Push, relay or inbox external harness, hosted agent, or a retained source route. Map raw events to turn messages, arrivals, consent or other available surfaces. Account for gating, batching, held-back turns and attribution. Keep reaction triggers with the source workflow under the current rollout. |
+| Inbound | Push, relay or inbox external harness, or a hosted agent. Map raw events to turn messages, arrivals, consent or other available Keiki surfaces. Account for gating, batching, held-back turns and attribution. Verify whether a notification can reproduce any source trigger and side effects. |
 | Turn owner | Existing deterministic handler or model loop, Keiki-hosted loop, or self-hosted AgentKit. Identify the caller, deadline, state and who owns completion. |
-| Outbound | Turn-scoped message or action, eligible existing-conversation notice, or retained provider send. Prove first contact separately. Capture behavior when a send was accepted, rejected or gave an ambiguous result. |
+| Outbound | Turn-scoped message or action, eligible existing-conversation notice, or an approved removal of unmapped sends. Prove first contact separately. Capture behavior when a send was accepted, rejected or gave an ambiguous result. |
 | Media and native operations | Attachments and scoped IDs, upload and download contract, native payloads and UI, supported line/transport combinations. |
 | Event lifecycle | Signing and header contract, acknowledgement, retries, ordering, duplicate detection, leases, arrivals, cancellation and completion. Treat provider delivery events and consent events as different contracts. |
 
 Compare affected files, hosting, runtimes, dependency versions, credential roles, lifecycle and operational risk. Verify the selected public types and demo code against the pinned artifact. Record the exact community framework or adapter if used and confirm it imports under the supported runtime in a clean project before relying on it. Use [the raw external harness recipe](./examples/external-harness.md) when an adapter is unsuitable.
 
-Use separate namespaces for provider and Keiki IDs until a compatible mapping is proven. If part of the original integration remains, specify the owner of each recipient/line/flow, subscription and outbound path. Prove that isolation avoids duplicate sends, lost events and inconsistent opt-outs, even during retry or rollback. Where two writers or subscribers cannot safely share a line, block the affected cutover until ownership is resolved.
+Use separate namespaces for historical source IDs and new Keiki IDs until a compatible mapping is proven. Set an explicit handoff from source routing to Keiki routing for each line. Reconcile in-flight events and opt-outs and verify single ownership even during retry and rollback. The migrated deployment uses Keiki exclusively for the replaced provider functions. Rollback restores a separate prior deployment if authorized.
 
-Apply the [current rollout exclusions](./imessage-capabilities.md#current-migration-scope) before requesting approval. If a source reaction, sticker, or other unavailable operation is interleaved with an otherwise supported reply in the same conversation, keep the whole affected workflow with the original provider until a safe boundary is proven or the user approves changed behavior. Show exactly which prompts, tools, triggers and recipient-visible results would change.
+Use the [replacement and removal rules](./imessage-capabilities.md#current-migration-scope) before requesting approval. Replace provider-specific actions with Keiki built-ins where the selected runtime and line support them. For every active behavior without a proven equivalent, show exactly what would disappear, including prompts, tools, triggers, scheduled work and recipient-visible results. If the user needs that behavior preserved, the migration is blocked.
 
 ## 7. Prove target capability parity
 
@@ -248,7 +248,7 @@ When hosted docs and a pinned package disagree, prove both claims separately. Se
 
 Implementation-only behavior must remain unverified unless it is publicly exported and supported.
 
-If parity remains uncertain, mark the affected capability unresolved. Block a full switch when it depends on that capability. Offer a partial or changed-behavior plan only with explicit effect on users, independently operable boundaries and a clear approval scope.
+If parity remains uncertain, mark the capability unresolved. Resolve it before committing to parity, or list it as a proposed removal with its exact user impact. Proceed only after approval of the Keiki-only plan.
 
 Request a revised plan only when the conflict or uncertainty is discovered after an earlier plan was approved.
 
@@ -266,8 +266,8 @@ A reviewable summary containing:
 - architecture;
 - selected Keiki target or target combination;
 - important behavior mappings;
-- behavior changes;
-- files expected to change;
+- behavior changes and a list of user-visible removals;
+- files expected to change and source runtime artifacts to delete;
 - blockers;
 - cutover impact;
 - verification strategy;
@@ -337,12 +337,12 @@ Allowed changes:
 
 Record the source credential names for each connection, the target role for each surface, and where each variable is read. A provider API token, a Keiki developer API key, a harness signing secret or platform public key, an inbox key and the per-dispatch turn bearer have different roles. A source secret has no Keiki role. A push handler can verify Keiki's platform signature with the documented JWKS when configured for that mechanism. Use a scoped developer credential for the approved developer operations. The authenticated turn supplies its own short-lived bearer for replies.
 
-Update the application config schema, example environment and deployment references together. Retain model keys and any provider keys still used by a retained path. In offline verification, use fabricated secret values to sign fixture dispatches, a separate fabricated turn bearer, and local mock responses for outbound calls. In a live cutover, configure real values in the environment's secret store and record the responsible owner without copying values into the plan.
+Update the application config schema, example environment and deployment references together. Preserve model keys. Remove the old provider credentials and deployment references under the approved cutover. In offline verification, use fabricated secret values to sign fixture dispatches, a separate fabricated turn bearer, and local mock responses for outbound calls. In a live cutover, configure real values in the environment's secret store and record the responsible owner without copying values into the plan.
 
 Required approach:
 
 - translate Keiki events into the application's existing internal shape;
-- preserve prompts, LLM behavior, business logic, UI, and product copy;
+- preserve prompts, LLM behavior, business logic, UI and product copy, with explicit edits for approved losses and actions moved behind Keiki built-ins;
 - preserve language and hosting model unless the approved target explicitly changes them;
 - preserve retry, ordering, deduplication, idempotency, attachment, status, and error semantics;
 - retain compatibility fields or aliases needed for existing stored records;
@@ -352,10 +352,11 @@ Required approach:
 - preserve user-visible behavior even when Keiki requires additional target-side calls;
 - implement required typing cleanup when typing behavior is active;
 - handle synchronous or asynchronous send failures according to the selected Keiki surfaces;
-- handle signature verification over raw bytes, turn and agent binding, duplicate processing and sends, scoped credentials, deadlines, cancellation, arrivals, completion, and any retained provider lifecycle behavior;
+- handle signature verification over raw bytes, turn and agent binding, duplicate processing and sends, scoped credentials, deadlines, cancellation, arrivals and completion;
 - handle only the attachment readiness, retrieval, upload, MIME, size, timeout, unsupported-media, and transfer-failure cases applicable to active source behavior;
 - preserve or explicitly replace receiving-line filtering using verified event or recipient identity;
-- avoid retaining unverified RCS, SMS, iMessage, capability, or product claims in prompts or product copy.
+- remove unverified capability claims from prompts and product copy;
+- remove the old provider's clients, dependencies, lockfile entries, webhook registrations, deployment configuration, jobs and runtime fallback paths. Stop for a scope decision if another app feature depends on them.
 
 Changes outside the approved scope:
 

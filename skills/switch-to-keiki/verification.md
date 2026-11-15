@@ -101,14 +101,14 @@ Verify the selected mode with fixture or integration evidence:
 - Test no-send conditions such as held-back, steered, cancelled and expired turns. Corroborate documented semantics before testing the exact mode.
 - Exercise arrival batching, source-ID mapping, correct sender attribution, ordering and completion, including an arrival at the completion boundary if the app enables steering.
 - Test stable idempotency per logical send, a duplicate success, an ambiguous send failure, a terminal `recipient_reply_required` or consent block, and safe retry or shutdown. Never retry an uncertain send using a fresh key merely because the first request failed.
-- Inspect signed consent events and their acknowledgement and deduplication separately when used. For retained reaction and sticker paths, verify the source provider still owns those events and sends. If an approved behavior change removes either feature, verify that stale prompts, tools and callbacks cannot invoke it in the Keiki flow.
+- Inspect signed consent events and their acknowledgement and deduplication separately when used. For a mapped Tapback, verify the Keiki action uses the scoped incoming message ID and attaches the reaction to that bubble. For each approved removal, verify the old callback, tool, prompt promise and related job have been removed.
 
-### Keiki agent, API, callbacks and retained surfaces
+### Keiki agent, API and callbacks
 
 - Verify an agent or line exists using only authorized reads. Confirm the selected runtime, configuration and callback contract with fixtures, and check exact agent/line routing, webhook signature, acknowledgement and duplicates as applicable.
 - A notice reaches only an existing conversation for the selected agent. Test targeted notice behavior, no-conversation error and sender-line conditions when in scope. A notice accepted or a turn completed is distinct from device delivery.
 - Test documented self-hosted delivery callback states and message correlation when approved. Record any unavailable receipt category or missing line evidence.
-- Test applicable startup, reconnect, duplicate listeners and orderly shutdown for the retained provider or an actual connection-based target. Check both regular and failure paths at the boundary selected in the plan.
+- Test applicable startup, reconnect, duplicate listeners and orderly shutdown for an actual connection-based Keiki target. Check both regular and failure paths at the boundary selected in the plan.
 
 When the source application uses typing behavior, verify:
 
@@ -172,7 +172,7 @@ Search active runtime code and configuration for:
 - old generated clients;
 - old provider deployment services.
 
-Historical migration notes may retain the provider name. Compatibility fields may remain only when they were approved and are still required to read existing records. Track old dependencies that are still active through shared integrations or a partial migration. For a full replacement, require removal of unexpected runtime dependencies. For a split, prove exact ownership and traffic isolation.
+Verify the migrated deployment can start and serve approved flows with source credentials unset and old provider hosts blocked. Check package manifests and lockfiles, queues, cron jobs, tool definitions, deployment secrets, webhook subscriptions and fallback flags. Verify old ingress is disabled and no source request is made. Historical migration notes, sanitized fixtures and approved read-only compatibility fields may preserve source identifiers. A live dependency on the source provider blocks completion.
 
 ## 9. Complete diff review
 
@@ -223,7 +223,8 @@ Do not report completion when:
 - the diff exceeds the approved plan;
 - an essential test failed;
 - a test could not run and was not reported;
-- the old provider remains active unexpectedly;
+- the migrated deployment still contains a reachable source provider integration, callback or fallback;
+- an approved user-visible removal was omitted from the final report or can still be invoked;
 - an active capability was removed because it was absent from only one documentation source;
 - an installable Keiki package lacks an approved planned version;
 - the lockfile-resolved installed version does not match the approved planned version;
@@ -288,7 +289,10 @@ Routing and service behavior:
 - <line, group, RCS, SMS, and iMessage results or exact exclusions>
 
 Provider removal:
-- <search and result>
+- <code, dependency, credentials, webhook, scheduled work and network checks>
+
+Approved features removed:
+- <exact user-facing change, caller removed and verification result, or none>
 
 Complete diff review:
 - <approved-file and behavior result>

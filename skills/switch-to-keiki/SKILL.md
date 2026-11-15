@@ -15,7 +15,7 @@ metadata:
 
 Move the active iMessage integration to Keiki with the smallest behavior-preserving change. Keiki manages the channel for an agent. Select the line, inbound contract, turn runtime, delivery surface, and event ownership independently. Preserve app logic, prompts, tools, internal models, hosting and stored data where the approved design permits.
 
-For the current Keiki iMessage rollout, treat native reactions and stickers as unavailable. This includes adding or removing Tapbacks, reaction-triggered workflows, and native sticker sends, placement and events. A required operation blocks a full switch. See the [current scope and conflict with public docs](./imessage-capabilities.md#current-migration-scope).
+Replace the source provider completely in the migrated application. Prefer Keiki built-in channel actions. For example, a Keiki agent can attach a native 👍 to an incoming message. Document and obtain approval for each behavior that will disappear, such as native sticker placement when no equivalent exists. See [replacement and removal rules](./imessage-capabilities.md#current-migration-scope).
 
 ## Migration contract
 
@@ -23,18 +23,18 @@ For the current Keiki iMessage rollout, treat native reactions and stickers as u
 2. Identify the exact SDK version or REST and event generations independently. Include every active mixed path. State the confidence and evidence. A required behavior that remains uncertain blocks that part of the switch.
 3. Prove each active capability against the selected Keiki line and public contract. Enumerate reachable closed values, such as delivery states, effects and standard Tapbacks. For open values, record a conversion rule and valid, invalid and unknown cases. Include user-visible behavior such as attached sticker placement, group addressing and first-contact sends.
 4. Record exact planned package versions and exported symbols, or the hosted endpoint, auth, API/event contract and dated official evidence. When published code and docs differ, validate the pinned runtime and select a documented, working surface. Keep documentary and runtime evidence distinct.
-5. Compare architecture and preserve the existing app boundary wherever possible. For an existing handler, evaluate a Keiki external harness that retains its logic. For each transport, document who receives, sends, owns the conversation and line, retries and completes. Consider separate consent and receipt surfaces when active. Inventory reaction dependencies even when they are kept on the source provider.
-6. Expose required unsupported or unresolved behavior. A full switch requires a verified mapping for the active scope. A partial plan needs a provably separate provider-owned route and unambiguous line and conversation ownership. Any changed behavior needs explicit approval. A private capability or a sample that omits a feature cannot settle support.
+5. Compare architecture and preserve the existing app boundary wherever possible. For an existing handler, evaluate a Keiki external harness that retains its logic. For each transport, document who receives, sends, owns the conversation and line, retries and completes. Consider separate consent, receipt and reaction surfaces when active. Use a Keiki action for a requested Tapback and assess inbound reaction-driven automation separately.
+6. Give each active behavior a disposition. Replace it with a verified or evidenced conditional Keiki action, propose explicit removal, or block the migration. Obtain approval for changes in timing, triggers and recipient-visible behavior. A private capability or a sample that omits a feature cannot settle support.
 7. Describe existing data and cutover effects before execution. Inspect sender identity, old provider IDs, existing conversations, pending work, opt-outs, subscriptions, onboarding links and cached or process-local state. Prove activation order, a single responder per live flow, and rollback without replaying uncertain sends.
 8. Show the [migration plan and capability evidence appendix](./plan-template.md) and stop before changes. If the user's goal is an install or offline evaluation, keep the application execution scope limited to that environment.
-9. Execute the approved integration changes on the agreed branch. Preserve unrelated changes, dependencies, services, channels and actual secrets. If the necessary changes differ materially in scope or product behavior, present the revised plan before proceeding with that work.
+9. Execute the approved integration changes on the agreed branch. Remove the source provider code, runtime dependencies, credentials, callbacks, jobs and fallback routing from the migrated deployment. Preserve unrelated app features and stored records. Resolve any other active dependency on the same provider within the approved plan before removing the integration.
 10. Verify each approved capability with its own expected result. Run the repository's applicable checks and verify the exact dependency and config. Where work is offline, simulate at the HTTP or adapter boundary with fake credentials and mark device-visible behavior separately. Where work copies an app, compare copied scope with the pinned original tree.
 
 ## Run the skill
 
 ### Phase 1 — Inspect and plan
 
-Follow [the workflow](./workflow.md). Use the [provider index](./providers/index.md) and read the matching playbooks. The [target selector](./keiki-targets.md), [iMessage capability matrix](./imessage-capabilities.md) and [evidence guide](./keiki-evidence.md) cover Keiki selection and blockers. Only offer the approval prompt when the reviewed scope is actionable. An independent partial plan can move forward while the full switch remains blocked.
+Follow [the workflow](./workflow.md). Use the [provider index](./providers/index.md) and read the matching playbooks. The [target selector](./keiki-targets.md), [iMessage capability matrix](./imessage-capabilities.md) and [evidence guide](./keiki-evidence.md) cover Keiki selection and blockers. Only offer the approval prompt for an actionable replacement plan that includes its proposed removals.
 
 ### Phase 2 — Execute and verify
 

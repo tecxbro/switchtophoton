@@ -124,11 +124,23 @@ A concise, reviewable summary containing:
 - Selected Keiki target or target combination
 - Important behavior mappings
 - Proposed behavior changes for approval
-- Files expected to change
+- Features that will be removed and how the user will notice
+- Files expected to change and old provider artifacts to remove
 - Blockers
 - Cutover impact
 - Verification strategy
 - Execution access, branch, and pull-request destination
+
+Behavior removals for approval
+
+| Active source behavior and evidence | Keiki gap and evidence | What the user or app loses | Tools, prompts, triggers and jobs to remove | Verification |
+|---|---|---|---|---|
+| <one row per loss, or none> | <selected line or runtime> | <observable change> | <exact caller and paths> | <how to confirm> |
+
+Source provider retirement
+- <SDKs, packages, locks, webhook routes and subscriptions, endpoints, credentials, jobs, feature flags and fallback paths to remove>
+- <historical IDs or sanitized fixtures that remain only for compatibility or evidence>
+- <any other active use of the source provider that blocks its removal until resolved>
 
 Capability evidence appendix
 
@@ -312,7 +324,7 @@ Verification plan
   - verify the deployed line, exact resolved SDK/runtime when used, and tool availability;
   - compare observable routing and delivery, side effects, applicable callbacks, timeouts and retries.
 
-  Include the lifecycle checks for retained provider routes or connections in a split deployment.
+  Check the source receiver and queued work are shut down at cutover and the Keiki runtime has no source fallback.
 
 - Attachment tests applicable to active source behavior and the selected target:
   - outbound local-file upload;
@@ -371,7 +383,7 @@ Verification plan
 
 Blockers
 - <every unsupported, uncertain, or non-equivalent capability, or none>
-- <for each active reaction or sticker dependency: retained source owner and isolated scope, full-switch blocker, or explicitly proposed behavior change>
+- <for each active reaction or sticker dependency: evidenced Keiki mapping, explicitly proposed removal, or blocker>
 - <for Low confidence: exact risk that must be explicitly accepted before execution>
 - Do not classify a capability as unsupported solely because it is absent from one Agent Skill, README, example, or documentation page.
 - Unsupported-capability investigation must follow the bounded escalation in keiki-evidence.md.
@@ -381,7 +393,7 @@ Blockers
 - An installable Keiki dependency must have an exact planned version.
 - A hosted Keiki service must have an identified public contract and documentation retrieval date.
 - Do not invent hosted-service versions.
-- A full switch remains blocked when required behavior is unmapped. Present a verified partial plan only if its retained provider path and isolation are explicit.
+- A Keiki-only switch remains blocked if required behavior is unmapped and its removal is unapproved, or an active dependency still needs the source provider.
 - A transport change must include an architecture-preservation comparison.
 - Confirm the active recipient path, first-contact behavior and line eligibility for the selected Keiki surface before authorizing cutover.
 - A mixed target must identify responsibility, event ownership, connection ownership, lifecycle ownership, duplicate prevention, retry behavior, and shutdown behavior.

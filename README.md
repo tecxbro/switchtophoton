@@ -4,7 +4,7 @@ Switch to Keiki is a portable Agent Skill for moving an existing **iMessage inte
 
 The skill traces the active provider integration in your app, proposes a supported Keiki path, and implements the approved scope. For example, Keiki can deliver signed turns to an existing inbound text agent. The app can keep its logic and send text replies through the turn API.
 
-Native iMessage reactions and stickers are unavailable for this migration. If the app relies on either, a full switch is blocked. The plan can retain an independently routed workflow on the existing provider, or propose a clearly labeled change for you to approve. An emoji reply and an image attachment are changes to what the recipient sees.
+Keiki replaces the app's old iMessage provider. Use Keiki's built-in actions for behavior it supports, such as the agent leaving a native thumbs-up on an incoming message. The plan lists any behavior removed because Keiki lacks an equivalent, such as native sticker placement, for explicit approval. The migrated app removes the old provider's runtime integration.
 
 ## Install
 
@@ -33,9 +33,9 @@ npx skills add https://github.com/tecxbro/switchtophoton/tree/codex/skills/switc
 
 ## Choose the migration scope
 
-- **Full switch** when every active behavior has a supported mapping for the selected Keiki line and runtime.
-- **Partial switch** when an independently operable part can move and the retained provider flow has a clear owner, without two systems sending the same reply.
-- **Blocked switch** when a required behavior, contact identity or line handoff remains unproven. See the [iMessage capability matrix](skills/switch-to-keiki/imessage-capabilities.md) for native operations and contract gaps.
+- **Preserve behavior** by replacing each source operation with a proven Keiki equivalent.
+- **Remove unavailable behavior** only when the plan names the lost behavior and the user approves its removal.
+- **Block the switch** when a required behavior has neither a safe Keiki mapping nor an approved removal. See the [iMessage capability matrix](skills/switch-to-keiki/imessage-capabilities.md).
 
 ## Source playbooks
 
