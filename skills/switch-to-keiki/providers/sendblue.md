@@ -63,6 +63,8 @@ Only proven capabilities belong in the plan.
 - Sender-line consistency may be product behavior.
 - SMS/RCS fallback must not disappear silently.
 - Group messaging may depend on `group_id` as the stable correlator.
-- Attachment URL lifetime and limits may differ from Photon.
+- Attachment URL lifetime and limits may differ from Keiki.
 - Provider-record deletion is not necessarily iMessage unsend.
 - Current Sendblue features not used by the repository are out of scope.
+
+A Sendblue port is separate from API cutover. Verify account eligibility, paperwork, fees, lead time and whether the old subscription must stay active with both providers before any cutover.

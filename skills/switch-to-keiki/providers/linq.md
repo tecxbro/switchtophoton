@@ -1,5 +1,7 @@
 # Linq source reference
 
+Official documentation: [Linq](https://docs.linqapp.com/channel/imessage/).
+
 Linq V2 and V3 are materially different. Detect every active generation before planning.
 
 ## Approved official documentation
@@ -82,7 +84,7 @@ Map every actively reachable closed reaction value individually.
 
 For custom emoji or free-form reaction values:
 
-- document the source-to-Photon conversion rule;
+- document the source-to-Keiki conversion rule;
 - test representative values;
 - test invalid values;
 - test unknown values;
@@ -102,20 +104,8 @@ For service and line behavior, record:
 
 ## Migration traps
 
-- V2 and V3 differ in authentication, paths, payloads, webhook schemas, identifiers, and timing.
-- Replacing synchronous V2 behavior with asynchronous V3-style behavior can break application state.
-- `trace_id` may be operationally required.
-- `event_id` may be the webhook deduplication key.
-- Integer and UUID identifiers are not interchangeable; existing records may need aliases or boundary translation.
-- Attachment flows can require different sequencing.
-- Do not delete Linq-only non-messaging functionality unless separately approved.
-- A source capability is not removable merely because one Photon document, README, example, or Agent Skill omits it.
-- Unsupported-capability investigation must use the bounded escalation in [`../photon-evidence.md`](../photon-evidence.md).
-- Linq REST failures may be synchronous while Photon behavior depends on the selected REST, webhook, Socket.IO, WebSocket, SDK, or unified-stream target.
-- Linq typing behavior may clear differently from Photon typing behavior.
-- Linq recipient-phone filtering must not be replaced with webhook registration assumptions unless receiving-line identity is proven through the selected Photon public contract and verification.
-- Linq media URLs and Photon attachment IDs or attachment resources may have different readiness, retrieval, upload, timeout, size, MIME-handling, and failure requirements.
-- Linq chat IDs and Photon chat GUIDs are provider-specific and must never be described as the same preserved identifier.
-- Process-local storage can still create a user-visible cutover requiring conversation reset, invalid onboarding links, credential loss, user-to-line reassignment, or re-onboarding when repository evidence shows those behaviors exist.
-- Spectrum must not be selected for an existing Linq REST or webhook application solely because it supports a required capability. The plan must prove that Spectrum creates a smaller and safer migration than preserving REST, HTTP webhook, or Photon HTTP Proxy Socket.IO boundaries.
-- RCS, SMS, iMessage, fallback, and routing claims must be supported by the selected Photon product’s public contract or approved as behavior changes. Live verification blocks completion when the required credentials, lines, devices, and recipients are available.
+- Do not drop a capability based on absence from one page. Use [Keiki evidence](../keiki-evidence.md).
+- Compare asynchronous acceptance vs synchronous errors, recipient-phone filtering, retries,
+  typing clear behavior and media readiness/expiry. Linq chat IDs are provider scoped.
+- Verify iMessage, RCS, SMS and fallback separately. A Keiki line backed by Linq may have
+  different capabilities than a dedicated line backed by another provider.

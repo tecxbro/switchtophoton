@@ -1,5 +1,7 @@
 # BlueBubbles source reference
 
+Official documentation: [BlueBubbles](https://github.com/BlueBubblesApp/bluebubbles-server).
+
 Use this file only after repository evidence indicates a BlueBubbles server integration.
 
 ## Approved official documentation
@@ -41,6 +43,6 @@ Inventory only active behavior, including:
 
 ## Architecture and migration traps
 
-BlueBubbles is self-hosted and depends on a local Mac server. Managed Photon infrastructure is a trust, hosting, networking, authentication, operational, and data-access change even when the API boundary looks similar.
-
-The plan must identify whether the closest target is Self-hosted iMessage Kit or a managed Photon product, explain the architecture change, preserve local operation when possible, and obtain approval before changing hosting. Do not promise parity for a Private API-only feature until the selected Photon target is verified.
+Moving off a Mac relay changes hosting, trust, data access and local availability.
+Prove that the selected Keiki contract covers any Private API behavior. Keep local
+fallback/rollback separate and do not remove the Mac relay before approved cutover.

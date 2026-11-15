@@ -1,5 +1,7 @@
 # Blooio source reference
 
+Official documentation: [Blooio](https://docs.blooio.com/).
+
 No approved official agent-readable documentation source is currently registered for this provider.
 
 Do not add or open ordinary Blooio documentation links. Rely on inspected repository evidence and report the documentation gap.
@@ -33,4 +35,6 @@ Inventory proven use of:
 
 ## Migration traps
 
-A unified multi-channel integration may use Blooio for more than iMessage. Do not replace it with an iMessage-only Photon target unless the approved plan preserves or explicitly excludes every other active channel. Do not claim exact parity from unsupported fingerprints or current assumptions.
+A unified multi-channel integration may use Blooio for more than iMessage. Do not replace it with an iMessage-only Keiki target unless the approved plan preserves or explicitly excludes every other active channel. Do not claim exact parity from unsupported fingerprints or current assumptions.
+
+Current docs distinguish v2 and v4; pin each active callsite and webhook schema independently.

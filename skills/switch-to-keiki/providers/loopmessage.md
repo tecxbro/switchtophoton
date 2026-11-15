@@ -1,5 +1,7 @@
 # LoopMessage source reference
 
+Official documentation: [LoopMessage](https://docs.loopmessage.com/).
+
 No approved official agent-readable documentation source is currently registered for this provider.
 
 Do not add or open ordinary LoopMessage documentation, help-center, marketing, or API links. Rely on the inspected repository and report the documentation gap.
