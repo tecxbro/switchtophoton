@@ -126,6 +126,8 @@ Before inventorying capabilities, classify what the repository *is* relative to 
 - **Provider façade / MCP server / proxy** — a server exposing the provider's API as tools or pass-through routes. The migration object is the *public wire contract* (paths, fields, error codes, token formats). Keiki MCP exposes org operations, not messaging primitives — MCP↔MCP is a role inversion, not parity.
 - **Provider SDK (first- or third-party)** — the library itself. Migrate only what has real consumers (in-repo or published downstream); example apps are documentation of intent, not the application. If no consumers exist in-repo, surface that as a scope question.
 - **Provisioning/ops tooling** — wizards, CLIs, or dashboards that create provider resources rather than send messages.
+- **Passive sink / webhook recorder / test harness** — stores or forwards provider events without calling the provider API (webhook-ingress-only). The migration object is the event record/forwarding contract; disposition is per *event type*, not per channel.
+- **Provider's own plugin fork** — an extended fork of the provider's official plugin/adapter. State whether the fork's customizations are inside or outside migration scope explicitly.
 
 If the repo shape is ambiguous or unprecedented, state the interpretation explicitly in the plan or ask the user before planning — do not guess silently.
 
@@ -137,6 +139,7 @@ A repository may contain several messaging providers or several SaaS vendors:
 - When several providers are active (primary/secondary adapters, feature-flagged transports, aggregator SDKs), the plan must state which boundary/boundaries are being replaced and the disposition of the rest — see the split-provider decision record in `keiki-targets.md`.
 - **Transitive-dependency caution**: aggregator and provider SDKs routinely drag *other* registered providers into lockfiles. A package appearing in a lockfile is not proof of use — require an import, call, host, header, env var, or payload fingerprint in application code.
 - **Fingerprint precedence**: when evidence disagrees, wire-format evidence (actual HTTP calls, headers, payloads, webhook schemas) outranks package names, docs claims, and comments. Conflicting wire evidence is reported as a conflict — never silently resolved.
+- **Confidence rubric**: fingerprints limited to configuration-only evidence (env-var names, provider name in docs/README, dedicated route paths) with zero wire-format or behavioral evidence cap at **Medium** — they can confirm intent but not the integration contract.
 - **Version-source spread**: when manifest ranges, multiple lockfiles, or CI pins disagree (or a lockfile is stale), record every observed version and which source is authoritative — do not pick one silently.
 - **Private source-API reliance**: flag any use of undocumented/private provider SDK internals (e.g. `sdk._private.method`); it lowers detection confidence and may break on provider upgrades.
 
@@ -198,7 +201,7 @@ When no approved source is registered, rely on repository evidence, report the a
 
 A capability is in scope only when it is reachable production behavior: active code paths, deployment configuration, stored data, or operational dependence prove the application uses it. Tests, fixtures, and mocks corroborate a capability but do not by themselves make it active; example apps, docs, and dead-but-implemented adapter methods are evidence *about* the code, not active capabilities — list them as intentionally excluded unless the user says otherwise. When the repository *is* the provider SDK/library/server (see "Repo shape"), its published surface — exports, routes, tools — is the capability set unless the user narrows it.
 
-Inspect inbound and outbound text, direct and group messaging, line selection, attachments, replies, reactions, typing, read state, effects, edits, unsends, delivery states, history or polling, SMS/RCS fallback, webhook authentication and acknowledgement, retries, idempotency, deduplication, ordering, lifecycle, and persisted provider identifiers.
+Inspect inbound and outbound text, direct and group messaging, line selection, attachments, replies, reactions, typing, read state, effects, edits, unsends, delivery states, history or polling, SMS/RCS fallback, webhook authentication and acknowledgement, retries, idempotency, deduplication, ordering, lifecycle, quota/rate-limit semantics (per-day caps, new-contact limits, reset windows — these often drive entire subsystems), and persisted provider identifiers.
 
 For façade/MCP-server/proxy repo shapes, the capability surface additionally includes the wire contract itself: protocol semantics (JSON-RPC methods, batching, notification handling, error envelopes), auth/token formats the server issues or verifies, pass-through proxy routes, and non-message domains (calls, contacts, registration, tickets) — inventory them as capabilities, not just messaging flows.
 
@@ -347,7 +350,7 @@ Before writing the plan, assign one verdict:
 
 - **Executable** — every active capability maps to a verified available Keiki surface; proceed to the approval gate.
 - **Executable with approved changes** — parity achievable only with explicit user-approved behavior changes (documented exclusions, split-provider retention, descoped channels); the approval gate covers these.
-- **Infeasible as specified** — a core capability has no Keiki surface and no approved workaround exists (e.g. verbatim cold outbound sends, provider voice APIs). Do **not** fill the full template with hundreds of unresolved rows and do **not** request the approval phrase — instead produce a short infeasibility report naming: the disqualifying capability/capabilities, what Keiki would need to support it, and the options (approved exclusions, partial migration with named losses, redesign, or abort). Execution is impossible regardless of approval.
+- **Infeasible as specified** — a core capability has no Keiki surface and no approved workaround exists (e.g. verbatim cold outbound sends, provider voice APIs). Do **not** fill the full template with hundreds of unresolved rows and do **not** request the approval phrase — instead produce a short infeasibility report naming: the disqualifying capability/capabilities, what Keiki would need to support it, and the options (approved exclusions, partial migration with named losses, redesign, abort, or **do not migrate** — when the repo exists to observe/test the source provider itself, migration inverts its purpose; say so plainly). Execution is impossible regardless of approval.
 - **Blocked on evidence/access** — detection confidence is Low, docs are unreachable, or no writable destination exists; state exactly what must be resolved.
 
 ### Keiki-side gap reporting

@@ -83,7 +83,7 @@ Choose each layer independently while preserving the existing application archit
 | Agent definition | `@onkeiki/agents` config synced via `kit.sync()`/`client.sync()`/`client.deploy()` |
 | Per-user agents | Partner deployments keyed by `external_ref` |
 | Org operations | Developer REST API or Keiki MCP |
-| Non-TypeScript runtimes | All `@onkeiki/*` packages are TypeScript. Python/Go/Rust/etc. use raw REST + `node:crypto`-equivalent verification: `whsec_` HMAC-SHA256 is stdlib-friendly everywhere; Ed25519 platform verification needs a pinned crypto dependency (e.g. PyNaCl/`cryptography`) — record the exact planned version |
+| Non-TypeScript runtimes | All `@onkeiki/*` packages are TypeScript. Python/Go/Rust/etc. use raw REST + a pinned crypto dependency for signature verification: `whsec_` HMAC-SHA256 is stdlib-friendly everywhere (`hmac`/`hashlib` in Python, `crypto` in Go); Ed25519 platform verification needs PyNaCl/`cryptography`/equivalent — record the exact planned version. Turn settlement (`/complete`), inbox polling, and turn-scoped sends are plain HTTPS+JSON and port directly |
 
 The final target may contain one or more surfaces.
 
@@ -220,7 +220,7 @@ When the correct answer keeps the source provider for some capabilities (partial
 | Capability or channel | Disposition | Target | Reason |
 |---|---|---|---|
 
-Allowed dispositions: `migrate-to-keiki`, `retain-on-source`, `descope-approved`, `blocked`. A split-provider plan must also define shared webhook demux, per-provider dedup domains, cross-provider identifier bridging, and which provider owns which credential. Retaining the source provider is a legitimate approved outcome — do not force a Keiki mapping that does not exist.
+Allowed dispositions: `migrate-to-keiki`, `retain-on-source`, `descope-approved`, `blocked`. A split-provider plan must also define shared webhook demux (multiple signature schemes can coexist in one receiver — name the port/path routing rule), per-provider dedup domains, cross-provider identifier bridging, and which provider owns which credential. When retained capabilities dominate the migrated ones, state explicitly that the result is effectively "keep the source provider + add Keiki," not a migration. Retaining the source provider is a legitimate approved outcome — do not force a Keiki mapping that does not exist.
 
 ## Target-specific routing
 

@@ -19,6 +19,8 @@ Confirm combinations of:
 - LoopMessage credential and environment-variable names;
 - sender names, sender IDs, pools, and aliases;
 - webhook or callback configuration with `webhook_url` and `webhook_header`;
+- webhook authentication variants seen in the wild: HMAC `loop-signature`/`x-loop-signature` headers, Bearer `Authorization`, or unsigned — implementations disagree; fingerprint the actual verification code, not the docs;
+- auth-header variants: `Authorization: <authKey>` + `Loop-Secret-Key`, plus an `Auth-Secret-Key` variant used by some SDK paths;
 - consent, sign-up, deep-link, or inbound-first eligibility flows;
 - endpoints such as `/api/v1/message/send/`, `/api/v1/message/show-typing/`, `/api/v1/message/edit/{id}/`, `/api/v1/message/unsend/{id}/`, `/api/v1/organizations/*`, `/api/v1/sender/plans/`;
 - unofficial SDKs such as `Wkasel/loopmessages` or `n8n-nodes-loopmessage` — confirm they are not mistaken for official clients.
@@ -49,7 +51,7 @@ Inventory only active behavior, including:
 - iMessage effects and `reply_to_id` threading;
 - SMS/RCS fallback and WhatsApp channel use under the same number;
 - status and lifecycle webhooks (`message_inbound`, `message_scheduled`, `message_delivered`, `message_failed`, reaction events; legacy payloads use `alert_type` such as `message_reply`, `inbound_call`, `unknown`);
-- webhook retries (up to 30 attempts with ~15s timeout expectations), `webhook_id` deduplication, and payload fields (`event`, `contact`, `message_id`, `service`, `api_version`; legacy: `alert_type`, `webhook_id`, `delivery_type`, `group{}`, `speech{}`, `language{}`);
+- webhook retries (up to 30 attempts with ~15s timeout expectations), `webhook_id` deduplication (**`webhook_id` is the event dedup key — do not conflate it with `message_id`**), and payload fields (`event`, `contact`, `message_id`, `service`, `api_version`; legacy: `alert_type`, `webhook_id`, `delivery_type`, `group{}`, `speech{}`, `language{}`);
 - per-message `status_callback` and `status_callback_header` fields, `subject`, `timeout`, and `sandbox` contact handling;
 - `/api/v1/auth/initiate/` imessage-link/deep-link flow;
 - typing and read indicators delivered as a **webhook-response body convention** (`{typing, read}` returned in the webhook response), not a separate API call — a transport-semantics difference to preserve or explicitly change;

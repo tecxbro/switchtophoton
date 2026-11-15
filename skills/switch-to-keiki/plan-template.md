@@ -118,10 +118,10 @@ Keiki target
   - serverless/async continuation: <waitUntil/after() vs the ≤10-minute turn deadline>
 - Agent-platform cost note: <per-turn billing/trace/prompt-guard implication for transport-only apps, or n/a>
 - Credential hygiene: <confirmation that Keiki-Turn-Token/ht_/kts1 credentials are never logged or persisted>
-- Channel disposition (multi-channel providers):
-  | Channel | Disposition | Target | Reason |
+- Channel/event-type disposition (multi-channel providers; for passive webhook sinks the axis is event type, not channel):
+  | Channel or event type | Disposition | Target | Reason |
   |---|---|---|---|
-  | <channel> | <migrate-to-keiki | retain-on-source | descope-approved | blocked> | <surface or provider> | <reason> |
+  | <channel or provider event type> | <migrate-to-keiki | retain-on-source | descope-approved | blocked> | <surface or provider> | <reason> |
 - Mixed-target requirement:
   - <why multiple Keiki surfaces produce a smaller or safer migration, or none>
 - Architecture-preservation comparison:
@@ -141,7 +141,7 @@ Split-provider decision record
 |---|---|---|---|
 | ... | migrate-to-keiki / retain-on-source / descope-approved / blocked | ... | ... |
 
-Use this table whenever the source provider is retained for any capability (partial migration). Define shared webhook demux, per-provider dedup domains, cross-provider identifier bridging, and credential ownership. Retaining the source provider is a legitimate approved outcome.
+Use this table whenever the source provider is retained for any capability (partial migration). Define shared webhook demux (multiple signature schemes may coexist in one receiver — name the routing rule), per-provider dedup domains, cross-provider identifier bridging, and credential ownership. Retaining the source provider is a legitimate approved outcome — but when retained capabilities dominate the migrated ones, say explicitly that the result is effectively "keep the source provider + add Keiki" rather than calling it a migration.
 
 Migration plan
 
@@ -152,6 +152,7 @@ A concise, reviewable summary containing:
 - Selected Keiki target or target combination
 - Important behavior mappings
 - Approved behavior changes
+- Required compensating controls (additions the source lacked but Keiki mandates — signature verification, turn settlement, credential redaction — listed as approved additions, not parity claims)
 - Files expected to change
 - Blockers
 - Cutover impact
