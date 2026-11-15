@@ -423,6 +423,8 @@ Verification plan
 
 Blockers
 - <every unsupported, uncertain, or non-equivalent capability, or none>
+- Keiki-side gaps (upstream requests — passable to the Keiki team or agent):
+  - <missing surface, required contract shape, and which source integrations need it — one row per unmapped capability, or none>
 - <for Low confidence: exact risk that must be explicitly accepted before execution>
 - Do not classify a capability as unsupported solely because it is absent from one agent-facing guide, README, example, OpenAPI path, or documentation page.
 - Unsupported-capability investigation must follow the bounded escalation in keiki-evidence.md.

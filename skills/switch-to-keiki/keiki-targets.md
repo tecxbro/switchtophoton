@@ -101,7 +101,7 @@ The final target may contain one or more surfaces.
 
 ## Known parity gaps — verified non-surfaces
 
-These were checked against official docs and `openapi.json`. Do not re-derive per migration; cite this list, then re-verify at plan time.
+These were checked against official docs and `openapi.json`. Do not re-derive per migration; cite this list, then re-verify at plan time. **This list doubles as the Keiki-side gap backlog**: every entry is a candidate upstream feature request. When a migration hits one, the plan must state the missing surface, the contract shape the source provider offers, and which integrations need it — written precisely enough for the user to pass to the Keiki team or as an instruction to the Keiki agent itself.
 
 - **No generic inbound "message received" webhook** — inbound reaches your app only through harness dispatch, the agent itself, or the API gateway.
 - **No public delivery-status or read-receipt event API** — delivery is tracked internally and inspectable through the delivery ledger, not pushed as message events.

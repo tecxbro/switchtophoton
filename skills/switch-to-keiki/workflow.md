@@ -350,6 +350,10 @@ Before writing the plan, assign one verdict:
 - **Infeasible as specified** — a core capability has no Keiki surface and no approved workaround exists (e.g. verbatim cold outbound sends, provider voice APIs). Do **not** fill the full template with hundreds of unresolved rows and do **not** request the approval phrase — instead produce a short infeasibility report naming: the disqualifying capability/capabilities, what Keiki would need to support it, and the options (approved exclusions, partial migration with named losses, redesign, or abort). Execution is impossible regardless of approval.
 - **Blocked on evidence/access** — detection confidence is Low, docs are unreachable, or no writable destination exists; state exactly what must be resolved.
 
+### Keiki-side gap reporting
+
+Every capability that cannot be mapped is also a **Keiki product gap**. For each one, the plan must state what Keiki would need to add — precise enough to act on: the missing surface (endpoint, event, or parameter), the contract shape the source provider offers, and which source integrations need it. The user can pass these items directly to the Keiki team or as instructions to the Keiki agent itself — treat them as upstream feature requests, not just migration blockers. The verified non-surface list in `keiki-targets.md` is the standing backlog; cite it rather than re-deriving, and add any newly discovered gaps to the report.
+
 ## 9. Build and show the plan
 
 Use [`plan-template.md`](./plan-template.md). The verdict from §8 decides the output:

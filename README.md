@@ -34,6 +34,8 @@ Switch to Keiki follows a strict migration process:
 
 The skill is designed to migrate existing behavior, not introduce new Keiki features or rebuild the application. When the correct answer is "don't migrate" — a core capability has no Keiki surface, or a split-provider architecture is safer — the skill says so explicitly instead of forcing a migration.
 
+Every capability Keiki does not yet support is reported as a Keiki-side gap — the missing surface, the contract shape the source provider offers, and which integrations need it — precise enough to pass to the Keiki team or as an instruction to the Keiki agent itself.
+
 ## Approval gate
 
 The skill begins in a read-only planning phase. It may execute the migration only when the user's latest message explicitly contains:

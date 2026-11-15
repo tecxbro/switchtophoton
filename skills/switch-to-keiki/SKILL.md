@@ -96,6 +96,7 @@ These rules are mandatory:
 27. Classify the repository's shape before inventorying capabilities — consumer app, provider library/adapter, provider façade/MCP server/proxy, provider SDK, or provisioning tooling — and define the migration object accordingly. When several messaging providers or adjacent SaaS vendors coexist, scope the provider boundary explicitly and use the split-provider decision record when the correct answer retains the source provider for some capabilities.
 28. Assign a plan verdict before writing the plan: executable, executable-with-approved-changes, infeasible-as-specified, or blocked-on-evidence. An infeasible verdict produces a short report naming the disqualifying capability and the options — never a wall of unresolved rows and never the approval phrase.
 29. Run the fast-reject check before deep capability mapping: a core flow with no Keiki surface (cold outbound sends, provider voice APIs, contacts CRM, history browsing) makes the plan infeasible-as-specified; report it early.
+30. Report every unmapped capability as a Keiki-side gap — name the missing surface, the contract shape the source provider offers, and which integrations need it — precisely enough for the user to pass to the Keiki team or as an instruction to the Keiki agent itself. Keiki gaps are upstream feature requests, not just migration blockers.
 
 ## Mandatory decision order
 
