@@ -15,6 +15,7 @@ Confirm combinations of:
 - packages or imports such as `sendblue`, `chat-adapter-sendblue`, `sendblue-api-mcp`, or `@sendblue/cli`;
 - Sendblue API hosts found in active code or configuration;
 - authentication headers such as `sb-api-key-id`, `sb-api-secret-key`, or signing-secret headers;
+- webhook verification model: Sendblue webhooks use a **static shared-secret header** (`sb-signing-secret` compared against the configured secret), not an HMAC signature — verify which model the app implements;
 - environment-variable names containing `SENDBLUE`;
 - endpoint patterns including `/api/send-message`, `/api/send-group-message`, `/api/send-carousel`, `/api/create-group`, `/api/evaluate-service`, `/api/account/webhooks`, `/api/v2/messages`, status, webhook, typing, reaction, and read paths;
 - older resource patterns such as `/accounts/messages`;
@@ -39,7 +40,8 @@ Check active use of:
 
 - direct and group sends;
 - message identifiers and durable use of `message_handle`;
-- inbound message and status webhooks;
+- inbound message and status webhooks — webhook types include `receive`, `outbound`, `typing_indicator`, `call_log`, and contact/opt-out events; delivery status values span `QUEUED`, `SENT`, `DELIVERED`, `ERROR`, plus service-specific states — enumerate every status the app actually consumes;
+- `/api/send-group-message` accepts `group_id` for existing groups vs a `numbers` array for new groups — distinguish which the app uses;
 - webhook acknowledgement, signing, retries, and deduplication;
 - attachments, media URLs, captions, size limits, download timing, and voice-note handling;
 - delivery and failure statuses;

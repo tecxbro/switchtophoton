@@ -5,12 +5,16 @@ Use this exact structure before any repository change.
 ```text
 Switch to Keiki — Migration Plan
 
+Plan verdict: <executable | executable-with-approved-changes | infeasible-as-specified | blocked-on-evidence>
+(For infeasible-as-specified, replace the full plan below with the short infeasibility report:
+disqualifying capability, what Keiki would need, and the options — do not request approval.)
+
 Repository state
 - Repository root: <path>
-- Default branch: <branch>
-- Current branch: <branch>
-- Starting commit: <sha>
-- Working tree: <clean or dirty>
+- Default branch: <branch or unknown/not a git repository>
+- Current branch: <branch or unknown>
+- Starting commit: <sha or unknown/not a git repository>
+- Working tree: <clean or dirty or unknown>
 - Unrelated changes to preserve:
   - <file/change or none>
 
@@ -43,8 +47,10 @@ Never override an explicit user-selected branch with the default.
 
 Source integration
 - Provider: <provider>
-- Detection result: <exact SDK version | known REST API generation | known webhook generation | mixed generations | unknown generation>
-- Exact SDK/API generation: <specific result>
+- Repo shape: <consumer application | provider library/adapter | provider façade/MCP server/proxy | provider SDK | provisioning tooling>
+- Provider-boundary scope: <which providers/channels are being replaced; disposition of the rest>
+- Detection result: <exact SDK version | known REST API generation | known webhook generation | raw REST unversioned | webhook-ingress-only | generation-irrelevant | mixed generations | mixed surfaces | unknown generation>
+- Exact SDK/API generation: <specific result; per-surface breakdown when mixed>
 - Integration style: <REST, webhook, SDK stream, WebSocket, Socket.IO, agent loop, adapter, local bridge, MCP, mixed>
 - Detection confidence: <High, Medium, Low>
 - Approved agent-readable source available: <yes with URL, or no>
@@ -100,9 +106,21 @@ Keiki target
 - Documentation retrieval details:
   - <source, retrieval date, and exact failure when applicable>
 - Surface availability:
-  - <surface>: <available | plan-gated | entitlement-gated | early-access | dashboard-only | add-on-required | unavailable — gate evidence>
+  - <surface>: <available | plan-gated | entitlement-gated | early-access | dashboard-only | add-on-required | unavailable — gate evidence and retrieval date>
 - Documented but unavailable Keiki capabilities:
   - <capability, its gate, and how the plan handles it — flagged workaround or approved exclusion, or none>
+- Turn-lifecycle design (harness targets):
+  - turn-context owner: <how outbound calls learn the active turnUrl/token>
+  - settlement: <when /complete fires relative to application work; failure paths>
+  - out-of-turn sends: <behavior when no live turn exists>
+  - multi-message turns: <fan-out and ordering for messages[] bursts>
+  - serverless/async continuation: <waitUntil/after() vs the ≤10-minute turn deadline>
+- Agent-platform cost note: <per-turn billing/trace/prompt-guard implication for transport-only apps, or n/a>
+- Credential hygiene: <confirmation that Keiki-Turn-Token/ht_/kts1 credentials are never logged or persisted>
+- Channel disposition (multi-channel providers):
+  | Channel | Disposition | Target | Reason |
+  |---|---|---|---|
+  | <channel> | <migrate-to-keiki | retain-on-source | descope-approved | blocked> | <surface or provider> | <reason> |
 - Mixed-target requirement:
   - <why multiple Keiki surfaces produce a smaller or safer migration, or none>
 - Architecture-preservation comparison:
@@ -116,6 +134,13 @@ Mixed target decision record
 | ... | ... | ... | ... | ... | ... | ... |
 
 Use this table only when more than one Keiki surface is selected. Define duplicate-event and duplicate-listener prevention, retry behavior, ambiguous-result handling, disconnect and reconnect behavior when applicable, webhook acknowledgement and retry behavior when applicable, and shutdown behavior.
+
+Split-provider decision record
+| Capability or channel | Disposition | Target | Reason |
+|---|---|---|---|
+| ... | migrate-to-keiki / retain-on-source / descope-approved / blocked | ... | ... |
+
+Use this table whenever the source provider is retained for any capability (partial migration). Define shared webhook demux, per-provider dedup domains, cross-provider identifier bridging, and credential ownership. Retaining the source provider is a legitimate approved outcome.
 
 Migration plan
 
@@ -422,9 +447,11 @@ Execution boundary
 - Any required scope expansion will produce a revised plan.
 - Approval applies to both the migration plan and the capability evidence appendix.
 
-To approve this exact migration plan, reply:
+When the plan verdict is executable or executable-with-approved-changes, to approve this exact migration plan, reply:
 
 APPROVE SWITCH TO KEIKI PLAN
+
+When the plan verdict is infeasible-as-specified or blocked-on-evidence with no executable path, do not include the approval phrase — state what must be resolved or which option the user chooses instead.
 ```
 
-Stop after showing the plan. Do not edit while waiting. Low-confidence detection also requires explicit acceptance of the stated risk; the approval phrase alone does not silently waive it.
+Stop after showing the plan. Do not edit while waiting. Low-confidence detection also requires explicit acceptance of the stated risk; the approval phrase alone does not silently waive it. For small integrations, mark inapplicable template sections `N/A` explicitly — proportionality is expected, not optional.

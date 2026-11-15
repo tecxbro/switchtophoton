@@ -9,9 +9,10 @@ Use this file only after repository evidence indicates Blooio.
 - https://blooio.com/integrations/api.md
 - https://docs.blooio.com/llms.txt
 - https://docs.blooio.com/llms-full.txt
+- https://docs.blooio.com/openapi.v4.json — the provider's published v4 OpenAPI contract of record (permitted under the index policy's official-OpenAPI exception)
 - Official per-page Markdown under `https://docs.blooio.com/**/*.md`
 
-Begin with the official `llms.txt`. Follow only relevant official agent-readable references that also satisfy the policy in [`index.md`](./index.md). Ordinary HTML documentation pages and the `api.blooio.com` OpenAPI `.json` file are not approved linked sources.
+Begin with the official `llms.txt`. Follow only relevant official agent-readable references that also satisfy the policy in [`index.md`](./index.md). Ordinary HTML documentation pages are not approved linked sources.
 
 ## Detection fingerprints
 
@@ -22,7 +23,9 @@ Confirm combinations of:
 - `/v2`, `/v3`, or `/v4` endpoint paths — v2 is the iMessage automation REST generation, v4 (`4.0.0-beta`) is the current multi-channel API covering iMessage, SMS, RCS, WhatsApp, and Apple Messages for Business; v3 was the enterprise tier rolling into v4;
 - bearer authentication (`Authorization: Bearer bl_live_…`) and `BLOOIO_API_KEY` environment variables;
 - webhook header `x-blooio-signature` with `BLOOIO_WEBHOOK_SECRET` and `Idempotency-Key` send headers;
-- webhook events such as `message.received` and SDK calls such as `blooio.chats.sendMessage`.
+- webhook events such as `message.received` and SDK calls such as `blooio.chats.sendMessage`;
+- **implementer/façade fingerprints** — when the repository *is* a Blooio API server or MCP wrapper rather than a consumer: compiled `operations.json`/`tools.js` generated from the OpenAPI spec, `UPSTREAM_BASE_URL`/`api.blooio.com` proxy routes, `server.json`/`mcp.blooio.com` self-identification, OAuth-authorization-server code delegating to Blooio OAuth, `bl_live_`/`bmcp_` token minting, `blooio://` resource URIs, `x-blooio-proxy` headers;
+- `/v3` paths that are only 308 legacy redirects to `/v4` are not a second generation — distinguish real v3 usage from redirect shims.
 
 A name alone is insufficient. Confirm active calls, handlers, fixtures, or deployment configuration.
 

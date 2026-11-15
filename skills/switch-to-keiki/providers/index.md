@@ -10,7 +10,12 @@ Use only official agent-readable documentation linked by this skill:
 2. Official `llms-full.txt`
 3. Official Markdown files ending in `.md`
 
-Do not directly link to normal documentation homepages, ordinary HTML pages, dashboards, marketing pages, API explorers, Swagger pages, GitHub repository roots, `.yaml` or `.json` OpenAPI files, unofficial mirrors, or blog posts.
+Do not directly link to normal documentation homepages, ordinary HTML pages, dashboards, marketing pages, API explorers, Swagger pages, unofficial mirrors, or blog posts.
+
+Exceptions to the OpenAPI and repository-root restrictions:
+
+- An **official OpenAPI document published by the provider itself** (`.json`/`.yaml`) is permitted when registered for that provider — it is the provider's machine-readable contract of record.
+- An **official product repository** (SDK monorepo, skills repo, docs repo) is permitted when registered — link the specific relevant file or directory inside it where possible rather than the bare root.
 
 This restriction applies to source-provider detection.
 
@@ -63,7 +68,7 @@ When retrieval fails:
 | Provider | Read | Approved official agent-readable sources | Strong repository fingerprints |
 |---|---|---|---|
 | Sendblue | [`sendblue.md`](./sendblue.md) | `https://docs.sendblue.com/llms.txt` | `sendblue`, `chat-adapter-sendblue`, Sendblue API hosts, `sb-api-key-id`, `/api/send-message` |
-| Linq | [`linq.md`](./linq.md) | `https://docs.linqapp.com/channel/imessage/llms.txt`, `https://docs.linqapp.com/channel/imessage/llms-full.txt`, `https://docs.linqapp.com/channel/whatsapp/llms.txt` (WhatsApp channel only) | `@linqapp/sdk`, `/api/partner/v2`, `/api/partner/v3`, `X-LINQ-INTEGRATION-TOKEN`, bearer auth, `event_id`, `whatsapp.messages.api.linqapp.com` |
+| Linq | [`linq.md`](./linq.md) | `https://docs.linqapp.com/channel/imessage/llms.txt`, `https://docs.linqapp.com/channel/imessage/llms-full.txt`, `https://docs.linqapp.com/channel/whatsapp/llms.txt` (WhatsApp channel only) | `@linqapp/sdk`, `chat-adapter-linq`, `/api/partner/v2`, `/api/partner/v3`, `X-LINQ-INTEGRATION-TOKEN`, bearer auth, `event_id`, `LINQ_*`, `whatsapp.messages.api.linqapp.com` |
 | Photon | [`photon.md`](./photon.md) | `https://docs.photon.codes/docs/llms.txt`, `https://photon.codes/llms.txt`, `https://photon.codes/llms-full.txt`, `https://photon.codes/docs/skill.md`, `https://github.com/photon-hq/skills` | `spectrum-ts`, `@spectrum-ts/*`, `@photon-ai/*`, `chat-adapter-imessage`, `spectrum.photon.codes`, `api.photon.codes`, `imessage-swagger.photon.codes`, `mcp.photon.codes`, `SPECTRUM_*`, `PHOTON_*`, `IMESSAGE_*` |
 | Inkbox | [`inkbox.md`](./inkbox.md) | `https://inkbox.ai/llms.txt`, `https://inkbox.ai/docs/llms.txt`, `https://inkbox.ai/docs/all.md`, `https://github.com/inkbox-ai/inkbox` | `@inkbox/sdk`, `inkbox` (PyPI/Cargo), `inkbox.ai/api/v1`, `X-API-Key`, `ApiKey_`, `INKBOX_API_KEY`, `*.inkboxwire.com` |
 | Project Blue | [`project-blue.md`](./project-blue.md) | `https://api.tryprojectblue.com/llms.txt`, `https://api.tryprojectblue.com/llms-full.txt`, `https://api.tryprojectblue.com/llms/*.md`, `https://docs.tryprojectblue.com/llms.txt` | `api.tryprojectblue.com`, `/send-api-message`, `/get-messages-api`, `proj_` keys, `pbm_`/`pbg_`/`ftc_` IDs, `@tryprojectblue/dialer`, `/api/mcp` |
@@ -89,3 +94,9 @@ If the user names a provider that has no registered file:
 7. note the missing registered reference file in the plan so the gap is visible rather than silent.
 
 A provider name or comment alone is not sufficient — always confirm active runtime or test evidence. Do not confuse similarly named products. Sendblue is not Sendinblue/Brevo. ZeroSettle's iMessage API (`portal.zerosettle.io`/`phonetw.in`) is unrelated to the ZeroSettle payments product (`docs.zerosettle.io`). Photon as a *source* provider is unrelated to Keiki as the *target* — Keiki iMessage lines may themselves be Photon-backed, which is a target-side detail, not source detection.
+
+Detection cautions:
+
+- **Transitive dependencies are not usage.** Aggregator and provider SDKs (e.g. Chert) drag other registered providers into lockfiles. A package in a lockfile is not proof — require an import, call, host, header, env var, or payload fingerprint in application code.
+- **Multi-vendor repos are normal.** Only integrations that send or receive messages are provider candidates; CRMs, analytics, and webhook sources are adjacent scope, not the provider.
+- **Webhook-ingress-only integrations exist.** An app may receive provider webhooks without ever calling the provider API — its fingerprints are route paths, signature headers, payload fields, and webhook-secret env vars, not SDK packages or send endpoints.

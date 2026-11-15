@@ -22,9 +22,10 @@ Confirm combinations of:
 - endpoint patterns including `/v1/messages`, `/v1/agents`, `/v1/numbers`, `/v1/conversations`, `/v1/contacts`, `/v1/calls`, `/v1/webhooks`, `/v1/register`, `/integrations/whatsapp/*`;
 - unauthenticated `/v0/agent/sign-up` and `/v0/agent/verify` self-signup calls;
 - webhook headers `X-Webhook-Signature`, `X-Webhook-Timestamp`, `X-Webhook-ID`, `X-Webhook-Event`;
+- webhook-secret environment variables such as `AGENTPHONE_WEBHOOK_SECRET` and dedicated webhook receiver routes (`/webhook`, `/webhooks/agentphone`) — a webhook-ingress-only integration may have zero SDK/REST fingerprints; the route + secret + provider name is then the fingerprint set;
 - identifier prefixes `agt_`, `num_`, `msg_`, `conv_`, `ct_`, `call_`, `rcs_`, `grp_`, and `ext:` external IDs.
 
-A name alone is insufficient. Confirm active calls, handlers, fixtures, or deployment configuration.
+A name alone is insufficient. Confirm active calls, handlers, fixtures, or deployment configuration. Note: the channel (SMS/MMS/iMessage/WhatsApp/RCS/voice) is often undeterminable from a passive webhook receiver — record it as provisioning-time scope, not a detection failure.
 
 ## Detect the exact SDK or REST generation
 

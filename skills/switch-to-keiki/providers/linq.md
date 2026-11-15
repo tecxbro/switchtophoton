@@ -14,7 +14,7 @@ Linq publishes per-channel documentation. Use the iMessage channel pair for mess
 
 Search for:
 
-- packages/imports such as `@linqapp/sdk`, `linq-python`, Linq Go clients, or a Linq Chat SDK adapter;
+- packages/imports such as `@linqapp/sdk`, `linq-python`, Linq Go clients, `chat-adapter-linq` (Vercel Chat SDK adapter — hand-rolled raw REST, no SDK package), or a Linq Chat SDK adapter;
 - exact locked SDK versions and generated-client metadata;
 - host `api.linqapp.com`;
 - V2 base path `/api/partner/v2`;
@@ -23,7 +23,7 @@ Search for:
 - V3 bearer authentication;
 - V2 integer identifiers and older `chat_messages` resources;
 - V3 UUID identifiers, `parts`, `trace_id`, `event_id`, `event_type`, attachment IDs, and nested resources;
-- webhook-version fields, tests, fixtures, and persisted identifier types;
+- webhook-version fields, tests, fixtures, and persisted identifier types — note type names like `LinqMessageEventDataV2` encode a *webhook event-data schema* version inside a V3 API integration; do not misread them as a V2-generation signal;
 - WhatsApp Partner API host `whatsapp.messages.api.linqapp.com` and its separate OpenAPI contract;
 - environment variables `LINQ_API_KEY` and `LINQ_API_V3_API_KEY`;
 - V2 `GET /api/partner/v2/chats/{chat_id}/migrate_to_v3` migration endpoint and V2 `webhook_subscriptions` paths.
@@ -121,6 +121,8 @@ For service and line behavior, record:
 - Linq media URLs and Keiki attachment IDs or attachment resources may have different readiness, retrieval, upload, timeout, size, MIME-handling, and failure requirements.
 - Linq chat IDs and Keiki conversation IDs are provider-specific and must never be described as the same preserved identifier.
 - Linq's WhatsApp Partner API is a separate contract from the iMessage Partner API; detect which channel the repository uses before planning.
+- Inbound reactions arrive as `reaction.added`/`reaction.removed` webhook events — Keiki delivers tapbacks as `keiki.reaction` non-turn dispatches (push mode only; relay mode does not receive them, and the published schema has no sender field — group attribution may be impossible).
+- History fetch (`fetchMessages`), thread/conversation inspection (`fetchThread`/`getChat`), phone-number listing (`listPhoneNumbers`), and mark-read (`POST /v3/chats/{id}/read`) have no confirmed Keiki public equivalents — treat as likely blockers or approved exclusions, not silent drops.
 - Process-local storage can still create a user-visible cutover requiring conversation reset, invalid onboarding links, credential loss, user-to-line reassignment, or re-onboarding when repository evidence shows those behaviors exist.
 - A hosted Keiki agent loop must not be selected for an existing Linq REST or webhook application solely because it supports a required capability. The plan must prove that it creates a smaller and safer migration than preserving REST, HTTP webhook, or Keiki harness-dispatch boundaries.
 - RCS, SMS, iMessage, fallback, and routing claims must be supported by the selected Keiki surface’s public contract or approved as behavior changes. Live verification blocks completion when the required credentials, lines, devices, and recipients are available.

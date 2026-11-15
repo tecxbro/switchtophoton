@@ -66,4 +66,6 @@ Only proven capabilities belong in the plan.
 - Shared connections expire on inactivity; detaching preserves history but blocks sends; there is no customer-facing line-release endpoint.
 - One webhook subscription can span `imessage.*`, `text.*`, `message.*`, `whatsapp.*`, `a2a.*`, and `slack.*` families — removing only the iMessage subscription can silently drop other channels.
 - MCP is a first-class surface (`inkbox.ai/mcp*`); detect MCP client configuration, not just REST/SDK usage.
+- **Channel disposition is mandatory for Inkbox.** It multiplexes email, SMS/MMS, iMessage, voice calls, WhatsApp, A2A, contacts, tunnels, and hosted agents behind one boundary. Produce a per-channel disposition before target selection: Keiki has no contacts CRM, no mailbox/transcript browsing, no raw voice/media API (Keiki calls are hosted agent voice turns), and A2A is inbound-only — a legitimate outcome is a split-provider plan retaining Inkbox for voice/A2A/contacts while messaging moves to Keiki.
+- **Turn-window mismatch:** Inkbox supports unbounded agent loops and proactive sends; Keiki turns cap at ~10 minutes and outbound is turn-scoped. Long-running turns need mid-turn continuation or re-dispatch design.
 - Current Inkbox features not used by the repository are out of scope.

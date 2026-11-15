@@ -6,8 +6,12 @@ The workflow has two hard phases. Do not combine them.
 
 ```text
 Inspect repository
+→ establish repository state and repo shape (consumer app / provider library /
+  façade-MCP-proxy / SDK / provisioning tool)
+→ scope provider boundary (single provider, multi-provider, adjacent vendors)
 → detect source provider
-→ detect exact source version or API generation
+→ detect exact source version or API generation (per surface when mixed)
+→ fast-reject check for disqualifying capabilities
 → identify active source capabilities
 → classify active values as closed or open-ended
 → map actively reachable closed values individually
@@ -15,6 +19,7 @@ Inspect repository
 → read the matching source-provider reference
 → identify source transport and behavior semantics
 → inspect current official Keiki evidence
+→ verify Keiki surface availability (plan, entitlement, add-on)
 → identify the exact planned version for each installable Keiki package
 → identify the public contract and retrieval date for each hosted Keiki service
 → select inbound Keiki transport
@@ -23,9 +28,10 @@ Inspect repository
 → select applicable lifecycle and error model
 → compare architecture preservation and migration risk
 → prove each capability mapping
+→ decide plan verdict (executable / executable-with-changes / infeasible-rescope)
 → identify writable execution destination and branch
 → build migration plan and capability evidence appendix
-→ request approval
+→ request approval (skipped for infeasible verdicts)
 → execute
 → verify installed versions against approved planned versions
 → verify against source and approved plan
@@ -61,7 +67,7 @@ Record:
 - unrelated changes that must be preserved;
 - languages, frameworks, package managers, deployment model, and available verification commands.
 
-If repository state is ambiguous, report it as a blocker rather than altering it.
+If repository state is ambiguous, report it as a blocker rather than altering it. When the repository has no `.git` metadata or cannot produce a commit SHA (read-only snapshot, exported archive), record `unknown/not a git repository` for branch and commit fields — this is a reportable state, not a fabrication target.
 
 ### Execution access
 
@@ -110,6 +116,29 @@ Search the complete repository, including:
 
 A provider name or comment alone is not sufficient. Confirm active runtime or test evidence.
 
+### Repo shape — define the migration object first
+
+Before inventorying capabilities, classify what the repository *is* relative to the provider:
+
+- **Consumer application** — an app that calls the provider for messaging (the common case).
+- **Provider library/adapter** — a published package implementing the provider boundary (e.g. a Chat SDK adapter). The migration object is the package's public API surface: decide whether to rewrite in place, produce a renamed package, or migrate its in-repo consumers; preserve exported names/types or record the breaking-change decision.
+- **Provider façade / MCP server / proxy** — a server exposing the provider's API as tools or pass-through routes. The migration object is the *public wire contract* (paths, fields, error codes, token formats). Keiki MCP exposes org operations, not messaging primitives — MCP↔MCP is a role inversion, not parity.
+- **Provider SDK (first- or third-party)** — the library itself. Migrate only what has real consumers (in-repo or published downstream); example apps are documentation of intent, not the application. If no consumers exist in-repo, surface that as a scope question.
+- **Provisioning/ops tooling** — wizards, CLIs, or dashboards that create provider resources rather than send messages.
+
+If the repo shape is ambiguous or unprecedented, state the interpretation explicitly in the plan or ask the user before planning — do not guess silently.
+
+### Multi-provider and adjacent-vendor scoping
+
+A repository may contain several messaging providers or several SaaS vendors:
+
+- Only integrations that **send or receive messages** are provider candidates. Adjacent vendors (CRMs, analytics, ticketing systems, webhook sources) are out of scope unless they carry messaging — do not mistake their hosts or env vars for the provider.
+- When several providers are active (primary/secondary adapters, feature-flagged transports, aggregator SDKs), the plan must state which boundary/boundaries are being replaced and the disposition of the rest — see the split-provider decision record in `keiki-targets.md`.
+- **Transitive-dependency caution**: aggregator and provider SDKs routinely drag *other* registered providers into lockfiles. A package appearing in a lockfile is not proof of use — require an import, call, host, header, env var, or payload fingerprint in application code.
+- **Fingerprint precedence**: when evidence disagrees, wire-format evidence (actual HTTP calls, headers, payloads, webhook schemas) outranks package names, docs claims, and comments. Conflicting wire evidence is reported as a conflict — never silently resolved.
+- **Version-source spread**: when manifest ranges, multiple lockfiles, or CI pins disagree (or a lockfile is stale), record every observed version and which source is authoritative — do not pick one silently.
+- **Private source-API reliance**: flag any use of undocumented/private provider SDK internals (e.g. `sdk._private.method`); it lowers detection confidence and may break on provider upgrades.
+
 Read [`providers/index.md`](./providers/index.md), then only the matching provider file. When no file matches — including a user-named provider that is not registered — derive fingerprints, generation signals, and capability inventory from repository evidence alone, consult official agent-readable documentation discovered for that provider when it satisfies the index policy, and report the missing reference file as a plan note rather than a silent gap.
 
 ## 3. Detect exact SDK or API generation
@@ -131,10 +160,16 @@ Report exactly one or more of:
 - `Exact SDK version`
 - `Known REST API generation`
 - `Known webhook generation`
-- `Mixed generations`
+- `Raw REST, unversioned` — direct HTTPS/JSON calls against an unversioned surface
+- `Webhook-ingress-only` — the app receives provider webhooks but never calls the provider API (generation may be unknowable; confidence scales with blast radius)
+- `Generation-irrelevant` — no generation-bound code exists (pure webhook sink, config-only)
+- `Mixed generations` — genuinely different API generations in use (not merely mixed surfaces)
+- `Mixed surfaces` — one generation spanning several distinct APIs (e.g. REST + dashboard management API + OAuth device flow); report each surface separately
 - `Unknown generation`
 
-Examples include `Sendblue TypeScript SDK 3.2.1`, `Sendblue raw REST using /api/send-message`, `Linq V2`, `Linq V3`, `Mixed Linq V2/V3`, `Blooio v4`, `Photon spectrum-ts <version>`, `Photon HTTP Proxy REST`, or `BlueBubbles server generation unknown`.
+Examples include `Sendblue TypeScript SDK 3.2.1`, `Sendblue raw REST using /api/send-message`, `Linq V2`, `Linq V3`, `Mixed Linq V2/V3`, `Blooio v4`, `Photon spectrum-ts <version>`, `Photon HTTP Proxy REST`, `BlueBubbles server generation unknown`, `raw REST, unversioned`, or `webhook-ingress-only`.
+
+For multi-surface sources, record a per-surface breakdown — one collapsed label loses detection fidelity.
 
 Report confidence:
 
@@ -152,13 +187,15 @@ Never assume current documentation matches the repository's installed generation
 
 ## 4. Read approved source-provider documentation
 
-Follow the policy in [`providers/index.md`](./providers/index.md). Use only official `llms.txt`, official `llms-full.txt`, or official Markdown files ending in `.md` that are linked by this skill.
+Follow the policy in [`providers/index.md`](./providers/index.md). Use official `llms.txt`, official `llms-full.txt`, official Markdown files ending in `.md` linked by this skill, or an official OpenAPI document published by the provider when the index registers one.
 
 When no approved source is registered, rely on repository evidence, report the absence, and treat unresolved version uncertainty as a planning blocker.
 
+**Degraded-evidence mode**: when the environment has search but no document fetch, search-result excerpts from official domains may satisfy Level-1 evidence only when they quote the official document verbatim; otherwise mark retrieval `retrieved but insufficient` and prefer repository wire evidence. Do not fabricate retrieval.
+
 ## 5. Inventory active capabilities
 
-A capability is in scope only when active code, tests, stored data, or deployment configuration proves the application uses or operationally depends on it.
+A capability is in scope only when it is reachable production behavior: active code paths, deployment configuration, stored data, or operational dependence prove the application uses it. Tests, fixtures, and mocks corroborate a capability but do not by themselves make it active; example apps, docs, and dead-but-implemented adapter methods are evidence *about* the code, not active capabilities — list them as intentionally excluded unless the user says otherwise. When the repository *is* the provider SDK/library/server (see "Repo shape"), its published surface — exports, routes, tools — is the capability set unless the user narrows it.
 
 Inspect inbound and outbound text, direct and group messaging, line selection, attachments, replies, reactions, typing, read state, effects, edits, unsends, delivery states, history or polling, SMS/RCS fallback, webhook authentication and acknowledgement, retries, idempotency, deduplication, ordering, lifecycle, and persisted provider identifiers.
 
@@ -249,6 +286,14 @@ Any transport change must identify:
 
 A mixed target may be preferred when it preserves the source application’s existing inbound, outbound, attachment, hosting, or lifecycle boundaries with fewer application changes.
 
+When the source provider is multi-channel (mail + SMS + iMessage + voice + contacts + tunnels), produce a **channel disposition** before target selection: which channels migrate to Keiki, which stay on the source provider, which are descoped with user approval, and which are blocked. Keiki covers iMessage/SMS/RCS/WhatsApp/Telegram/Slack/agentmail/API/A2A — it has no contacts CRM, no raw voice/media API, no mailbox browsing, and no outbound A2A client. A legitimate outcome is a **split-provider architecture** (Keiki for messaging, source retained for the rest) — record it with the split-provider decision record in `keiki-targets.md`.
+
+**Turn-lifecycle design is mandatory for harness targets.** Every Keiki turn has a ≤10-minute deadline and must be settled via `POST {turnUrl}/complete`. The plan must name: the turn-context owner (how outbound calls learn the active `turnUrl`/token), when `/complete` fires relative to application work, behavior for sends with no live turn, settlement on failure paths, `midTurnStrategy` choice, multi-message turn fan-out, and serverless/async continuation (`waitUntil`/`after()` vs. turn deadline). Turns are *not* the source provider's request/response model — this is the central architectural delta of every webhook→harness migration.
+
+**Agent-platform cost check.** Keiki is an agent platform, not a dumb pipe: every inbound message spins an agent turn (model billing, trace, prompt-guard, memory). For apps that only need a transport boundary (passive notification sinks, fire-and-forget alerts), state the per-turn cost implication explicitly in the plan.
+
+**Credential hygiene.** Turn credentials (`Keiki-Turn-Token` `ht_…`, `kts1.…`) are short-lived secrets — the plan must require they are never logged, stored in event dumps, or included in error reports, especially for event-recording receivers that persist headers verbatim.
+
 When selecting a mixed target, prove:
 
 - the responsibility of each Keiki surface;
@@ -293,26 +338,40 @@ If exact parity remains uncertain during initial planning, mark the capability u
 
 Request a revised plan only when the conflict or uncertainty is discovered after an earlier plan was approved.
 
-## 8. Build and show the plan
+## 8. Decide the plan verdict
 
-Use [`plan-template.md`](./plan-template.md) exactly.
+Before writing the plan, assign one verdict:
 
-Produce two sections:
+- **Executable** — every active capability maps to a verified available Keiki surface; proceed to the approval gate.
+- **Executable with approved changes** — parity achievable only with explicit user-approved behavior changes (documented exclusions, split-provider retention, descoped channels); the approval gate covers these.
+- **Infeasible as specified** — a core capability has no Keiki surface and no approved workaround exists (e.g. verbatim cold outbound sends, provider voice APIs). Do **not** fill the full template with hundreds of unresolved rows and do **not** request the approval phrase — instead produce a short infeasibility report naming: the disqualifying capability/capabilities, what Keiki would need to support it, and the options (approved exclusions, partial migration with named losses, redesign, or abort). Execution is impossible regardless of approval.
+- **Blocked on evidence/access** — detection confidence is Low, docs are unreachable, or no writable destination exists; state exactly what must be resolved.
+
+## 9. Build and show the plan
+
+Use [`plan-template.md`](./plan-template.md). The verdict from §8 decides the output:
+
+- **Executable / Executable with approved changes** — produce the two sections below.
+- **Infeasible as specified** — produce the short infeasibility report described in §8 instead of the full template; do not end with the approval phrase.
+- **Blocked on evidence/access** — produce the plan with blockers filled and state what must be resolved; the approval phrase is omitted when no executable path exists.
 
 ### Migration plan
 
 A reviewable summary containing:
 
 - source detection;
+- repo shape and provider-boundary scope;
 - architecture;
 - selected Keiki target or target combination;
+- channel disposition (multi-channel providers);
 - important behavior mappings;
 - behavior changes;
 - files expected to change;
 - blockers;
 - cutover impact;
 - verification strategy;
-- execution access, branch, and pull-request destination.
+- execution access, branch, and pull-request destination;
+- plan verdict.
 
 ### Capability evidence appendix
 
@@ -327,7 +386,7 @@ A detailed appendix containing:
 - routing behavior;
 - confidence per capability.
 
-Approval applies to both sections, but the main migration plan must remain concise enough for meaningful review.
+Approval applies to both sections, but the main migration plan must remain concise enough for meaningful review. For small integrations, mark inapplicable template sections `N/A` explicitly rather than padding them; proportionality is expected, not optional.
 
 Show the complete plan and end the response with:
 
@@ -353,7 +412,7 @@ APPROVE SWITCH TO KEIKI PLAN
 
 A vague response such as “looks good,” “continue,” or “go ahead” does not satisfy the gate.
 
-## 9. Reconfirm state and isolate work
+## 10. Reconfirm state and isolate work
 
 - Reconfirm the starting commit and working tree.
 - Preserve unrelated user changes.
@@ -362,7 +421,7 @@ A vague response such as “looks good,” “continue,” or “go ahead” doe
 - Do not modify or merge the default branch unless the user separately requests that Git action.
 - Verify that the writable repository and pull-request destination still match the approved plan.
 
-## 10. Execute parity-only replacement
+## 11. Execute parity-only replacement
 
 Implement only the approved plan.
 
@@ -390,6 +449,9 @@ Required approach:
 - handle applicable connection, turn, dispatch, webhook-retry, request-timeout, and shutdown behavior;
 - handle only the attachment readiness, retrieval, upload, MIME, size, timeout, unsupported-media, and transfer-failure cases applicable to active source behavior;
 - preserve or explicitly replace receiving-line filtering using verified event, conversation, or line identity;
+- settle every harness turn via `POST {turnUrl}/complete` — an unsettled turn dies at its deadline; fan out multi-message `messages[]` turns per message while sharing turn context, honor `midTurnStrategy`/`keiki.turn.arrival` semantics, and never feed `silent:true` platform entries to the agent as user messages;
+- handle `keiki.reaction` and cancellation dispatches as non-turn events (2xx ack, no settlement);
+- never log, persist, or include `Keiki-Turn-Token`/`ht_…`/`kts1.…` credentials in event dumps, error reports, or stored payloads — redact authorization headers before storage;
 - avoid retaining unverified RCS, SMS, iMessage, capability, or product claims in prompts or product copy.
 
 Prohibited changes:
@@ -401,7 +463,7 @@ Prohibited changes:
 - silent hosting changes;
 - removal of non-iMessage channels outside approved scope.
 
-## 11. Enforce scope changes
+## 12. Enforce scope changes
 
 When necessary work is discovered outside the approved plan, stop and produce:
 
@@ -420,6 +482,6 @@ Explain:
 
 Do not continue until the user's latest message again contains `APPROVE SWITCH TO KEIKI PLAN`. Original approval is not unlimited permission.
 
-## 12. Verify
+## 13. Verify
 
 Read [`verification.md`](./verification.md). Compare the implementation to the approved plan, run available repository checks, prove each approved capability, verify exact installed versions against approved planned versions, search for active source-provider remnants, and review the complete diff before reporting status.

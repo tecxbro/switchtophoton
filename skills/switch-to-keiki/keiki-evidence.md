@@ -17,6 +17,8 @@ For every installable Keiki package considered, record:
 
 Do not plan against an unpinned package range such as `^1.2.0`.
 
+Resolve exact planned versions from the npm registry or an official locked example. When the registry cannot be queried, record "latest confirmed `<version>` at `<date>`, re-resolve at install" — never guess a version.
+
 During verification, record the exact installed version resolved by the lockfile and confirm that it matches the approved planned version.
 
 For every hosted Keiki service considered, record:
@@ -44,6 +46,8 @@ For every Keiki surface considered, also record its availability status:
 - `unavailable`.
 
 Include the gate evidence (plan requirement, entitlement, region, add-on, waitlist, or dashboard step). A surface documented in Keiki docs but failing this check must be flagged as documented-but-unavailable in the plan — never silently planned against and never silently substituted.
+
+Record the documentation retrieval date for every Keiki contract claim. Keiki ships frequently and its own docs conflict in places (e.g. signup gating, acknowledgement status codes) — cite the conflicting sources and prefer the public contract; never present a stale snapshot as current.
 
 ## 2. Evidence order
 

@@ -39,7 +39,7 @@ These rules are mandatory:
 9. Detect the exact source SDK version or API generation.
 10. Do not assume the application uses the latest source-provider API.
 11. Select the Keiki surface that most closely preserves the existing architecture.
-12. For installable Keiki packages, record the exact planned package version.
+12. For installable Keiki packages, record the exact planned package version — resolve it from the npm registry or an official locked example; if the registry cannot be queried, record "latest confirmed `<version>` at `<date>`, re-resolve at install" rather than guessing.
 
     For hosted Keiki services, record:
 
@@ -47,7 +47,7 @@ These rules are mandatory:
     - public endpoint or product;
     - official documentation source;
     - documentation retrieval date;
-    - official source repository commit when inspected;
+    - official source repository commit only when source inspection is required and the repository is confirmed to represent the hosted service;
     - publicly exposed API or event contract.
 
     Do not invent a hosted-service version when Keiki does not publish one.
@@ -93,13 +93,20 @@ These rules are mandatory:
 24. Do not claim completion while required behavior is blocked or unverified.
 25. When the user names the source provider, use it as the detection hypothesis and confirm or correct it with repository evidence. Do not ignore a user-named provider, and do not require a registered provider file to proceed.
 26. Flag every Keiki capability that is documented but not currently available — plan-gated, waitlist, early-access, dashboard-only, entitlement-gated, add-on-required, or region-limited — in the plan instead of silently planning against it or silently substituting another surface.
+27. Classify the repository's shape before inventorying capabilities — consumer app, provider library/adapter, provider façade/MCP server/proxy, provider SDK, or provisioning tooling — and define the migration object accordingly. When several messaging providers or adjacent SaaS vendors coexist, scope the provider boundary explicitly and use the split-provider decision record when the correct answer retains the source provider for some capabilities.
+28. Assign a plan verdict before writing the plan: executable, executable-with-approved-changes, infeasible-as-specified, or blocked-on-evidence. An infeasible verdict produces a short report naming the disqualifying capability and the options — never a wall of unresolved rows and never the approval phrase.
+29. Run the fast-reject check before deep capability mapping: a core flow with no Keiki surface (cold outbound sends, provider voice APIs, contacts CRM, history browsing) makes the plan infeasible-as-specified; report it early.
 
 ## Mandatory decision order
 
 ```text
 Inspect repository
+→ establish repository state and repo shape (consumer app / provider library /
+  façade-MCP-proxy / SDK / provisioning tool)
+→ scope provider boundary (single provider, multi-provider, adjacent vendors)
 → detect source provider
-→ detect exact source version or API generation
+→ detect exact source version or API generation (per surface when mixed)
+→ fast-reject check for disqualifying capabilities
 → identify active source capabilities
 → classify active values as closed or open-ended
 → map actively reachable closed values individually
@@ -107,18 +114,19 @@ Inspect repository
 → read the matching source-provider reference
 → identify source transport and behavior semantics
 → inspect current official Keiki evidence
+→ verify Keiki surface availability (plan, entitlement, region, add-on)
 → identify the exact planned version for each installable Keiki package
 → identify the public contract and retrieval date for each hosted Keiki service
 → select inbound Keiki transport
 → select outbound Keiki transport
 → select attachment transport
 → select applicable lifecycle and error model
-→ verify Keiki surface availability (plan, entitlement, region, add-on)
 → compare architecture preservation and migration risk
 → prove each capability mapping
+→ decide plan verdict (executable / executable-with-changes / infeasible-rescope)
 → identify writable execution destination and branch
 → build migration plan and capability evidence appendix
-→ request approval
+→ request approval (skipped for infeasible verdicts)
 → execute
 → verify installed versions against approved planned versions
 → verify against source and approved plan
@@ -134,7 +142,7 @@ Do not select Keiki APIs before source-provider detection is complete.
 | Required user-facing migration plan | [`plan-template.md`](./plan-template.md) |
 | Provider routing and agent-readable documentation policy | [`providers/index.md`](./providers/index.md) |
 | Sendblue | [`providers/sendblue.md`](./providers/sendblue.md) |
-| Linq V2, V3, or mixed V2/V3 | [`providers/linq.md`](./providers/linq.md) |
+| Linq V2, V3, WhatsApp, or mixed generations | [`providers/linq.md`](./providers/linq.md) |
 | Photon Spectrum, webhooks, HTTP Proxy, kits, MCP, or Chat SDK adapter | [`providers/photon.md`](./providers/photon.md) |
 | Inkbox | [`providers/inkbox.md`](./providers/inkbox.md) |
 | Project Blue | [`providers/project-blue.md`](./providers/project-blue.md) |
@@ -211,7 +219,8 @@ Permitted official Keiki evidence includes:
 - official hosted-service API and event contracts;
 - official Keiki implementation source when escalation is required;
 - official Keiki tests when they exist;
-- official Keiki product repositories.
+- official Keiki product repositories;
+- the npm registry or an official locked example for exact installable-package versions.
 
 Do not declare a capability unsupported from one missing example, README section, agent-facing guide, OpenAPI path, or incomplete documentation page.
 

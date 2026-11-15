@@ -94,9 +94,13 @@ Run lifecycle tests applicable to the selected Keiki surfaces.
 Verify:
 
 - dispatch signature verification (HMAC `Keiki-Signature` and/or Ed25519 `Keiki-Signature-Ed25519`);
-- turn acknowledgement and asynchronous `/complete` settlement;
-- mid-turn arrivals and `consumedArrivals` reporting;
+- turn acknowledgement and asynchronous `/complete` settlement — including failure paths that must still settle;
+- multi-message `messages[]` turn fan-out, ordering, and `midTurnStrategy`/`keiki.turn.arrival` behavior;
+- `silent:true` platform entries never reaching the agent as user messages;
+- `keiki.reaction` non-turn dispatch handling (2xx ack, no settlement, dedup on `eventId`) — and confirm relay mode is not relied on for reactions;
+- opt-out suppression awareness (STOP contacts never dispatch);
 - turn credential (`ht_`/`kts1.`) expiry and scope;
+- **credential hygiene**: turn tokens and authorization headers are never logged, persisted, or included in stored event payloads or error reports;
 - dispatch endpoint outage behavior;
 - relay and inbox mode claim semantics when used;
 - asynchronous send failures and `502 retryable:false` ambiguous-delivery handling;

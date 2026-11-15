@@ -23,16 +23,16 @@ npx skills add tecxbro/switchtophoton --skill switch-to-photon
 Switch to Keiki follows a strict migration process:
 
 1. Inspects the repository without making changes.
-2. Detects the existing messaging provider.
-3. Identifies the exact SDK version, REST API generation, webhook generation, or mixed integration in use.
-4. Inventories only the messaging capabilities already used by the application.
-5. Selects the Keiki surface that most closely preserves the current architecture — external harness (push, relay, or inbox), cloud-served or self-hosted agent, developer REST API and partner deployments, agent API gateway, event webhooks, MCP, or a framework adapter — and flags any Keiki capability that is documented but not currently available (plan-gated, waitlist, early-access, dashboard-only, or add-on).
-6. Produces a complete migration plan with a capability evidence appendix.
+2. Classifies the repo shape (consumer app, provider library, façade/MCP server, SDK, provisioning tool) and scopes the provider boundary — including multi-provider and multi-channel cases.
+3. Detects the existing messaging provider and its exact SDK version, REST API generation, webhook generation, or mixed surfaces.
+4. Inventories only the messaging capabilities already used by the application, with a fast-reject check for capabilities that have no Keiki surface.
+5. Selects the Keiki surface that most closely preserves the current architecture — external harness (push, relay, or inbox turn dispatch), cloud-served or self-hosted agent, developer REST API and partner deployments, agent API gateway, event webhooks, MCP, or a framework adapter — and flags any Keiki capability that is documented but not currently available (plan-gated, waitlist, early-access, dashboard-only, or add-on).
+6. Assigns a plan verdict — executable, executable-with-approved-changes, infeasible-as-specified, or blocked-on-evidence — and produces a complete migration plan with a capability evidence appendix (or a short infeasibility report when no parity path exists).
 7. Waits for explicit user approval before editing the repository.
 8. Replaces only the approved provider boundary.
 9. Verifies feature parity, tests, configuration, and removal of the old provider.
 
-The skill is designed to migrate existing behavior, not introduce new Keiki features or rebuild the application.
+The skill is designed to migrate existing behavior, not introduce new Keiki features or rebuild the application. When the correct answer is "don't migrate" — a core capability has no Keiki surface, or a split-provider architecture is safer — the skill says so explicitly instead of forcing a migration.
 
 ## Approval gate
 

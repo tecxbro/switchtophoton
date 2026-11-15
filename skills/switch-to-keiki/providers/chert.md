@@ -16,7 +16,7 @@ Begin with the official `llms.txt`. Follow only relevant official agent-readable
 
 ### Messaging API (iMessage)
 
-- packages or imports such as `@trychert/sdk`, `@trychert/facetime`, `chert-sdk` (PyPI), Rust `chert-sdk`, Go `chert`, or the `chert`/`chert-sdk` binaries;
+- packages or imports such as `@trychert/sdk` — including its subpath imports `@trychert/sdk/imessage` and `@trychert/sdk/facetime` (there is no standalone `@trychert/facetime` package) — `chert-sdk` (PyPI), Rust `chert-sdk`, Go `chert`, or the `chert`/`chert-sdk` binaries;
 - host `console.trychert.com` with `/api/v1` paths (`/send`, `/chats`, `/messages`, `/attachments`, `/voice-notes`, `/locations`, `/phone-numbers`, `/webhook-subscriptions`, `/events`, `/dev-inbox`, `/whoami`);
 - authentication via `Authorization: Bearer <signing_secret>` or `x-chert-signature: v1,<unix_seconds>,<hmac_hex>` HMAC headers;
 - `x-chert-tenant` tenant header for multi-tenant or signature-authenticated calls;
