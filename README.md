@@ -1,49 +1,58 @@
 # Switch to Keiki
 
-Switch to Keiki is a portable Agent Skill for migrating an existing iMessage integration to [Keiki](https://onkeiki.com/docs). It works with coding agents such as Codex, Claude Code, Cursor, OpenCode, and GitHub Copilot.
+Switch to Keiki is a portable Agent Skill for moving an existing **iMessage integration** to [Keiki](https://onkeiki.com/docs). It works with coding agents such as Codex, Claude Code, Cursor, OpenCode, and GitHub Copilot.
 
-It detects the source provider and API generation, inventories the behavior your app relies on, and builds an evidence-backed migration plan. Keiki manages iMessage as a channel for agents. The plan explains which flows fit a hosted Keiki agent or an external harness, which need changes, and which are blocked by gaps in the public contract.
+The skill traces the provider boundary in the application you give it, finds the actual SDK or API generation, and maps each active behavior to a Keiki line, runtime and public operation. It produces a reviewable migration plan, implements the approved scope, and verifies the result. Full replacement requires evidence for every required behavior. A supported inbound agent can be a good candidate even when first contact, stickers, history access, or other raw provider operations require a separate decision.
 
 ## Install
 
-From the application repository you want to migrate, run:
+From the app repository you want to migrate, run:
 
 ```bash
 npx skills add https://github.com/tecxbro/switchtophoton/tree/codex/skills/switch-to-keiki --skill switch-to-keiki
 ```
 
-## Use
+## Run
 
-Ask your coding agent:
+1. Ask your coding agent to use the skill in the app repo. For example:
 
-```text
-Use switch-to-keiki to inspect this repository and prepare an iMessage migration plan.
-```
+   ```text
+   Use switch-to-keiki to inspect this repo and plan a migration of its existing iMessage integration.
+   Preserve the app's tools, prompts, state, hosting and user-visible behavior.
+   ```
 
-The skill starts with read-only inspection. It identifies the affected code, source and target contracts, line and conversation cutover, and verification steps. Review the plan and, when ready to authorize the changes it describes, reply:
+2. Review the detected provider generations, target line and runtime, capability evidence, changed behavior, blockers, cutover and verification plan. This phase is read-only. An executable plan includes the approval prompt below. A blocked plan explains what proof or scope decision is needed.
 
-```text
-APPROVE SWITCH TO KEIKI PLAN
-```
+   ```text
+   APPROVE SWITCH TO KEIKI PLAN
+   ```
 
-The agent then changes the approved integration boundary and verifies existing behavior against the plan. Required capabilities without a verified mapping stay visible as blockers. A plan may propose keeping part of the source integration or changing a specific product behavior for you to review.
+3. After approval, the agent makes the changes on the agreed branch and records each capability's result. Fixture verification can use fake credentials and locally captured requests. Live parity requires the chosen line and authorized device checks for the behaviors that depend on them.
 
-## Source providers
+## Choose the migration scope
 
-| Provider | Migration reference |
+- **Full switch** when every active behavior has a supported mapping for the selected Keiki line and runtime.
+- **Partial switch** when an independently operable part can move and the retained provider flow has a clear owner, without two systems sending the same reply.
+- **Blocked switch** when a required behavior, contact identity or line handoff remains unproven. See the [iMessage capability matrix](skills/switch-to-keiki/imessage-capabilities.md) for native operations and contract gaps.
+
+## Source playbooks
+
+| Provider | Reference |
 |---|---|
-| Linq | [Source detection and migration notes](skills/switch-to-keiki/providers/linq.md) |
-| Photon | [Source detection and migration notes](skills/switch-to-keiki/providers/photon.md) |
-| Sendblue | [Source detection and migration notes](skills/switch-to-keiki/providers/sendblue.md) |
-| Inkbox | [Source detection and migration notes](skills/switch-to-keiki/providers/inkbox.md) |
-| Blooio | [Source detection and migration notes](skills/switch-to-keiki/providers/blooio.md) |
-| Project Blue | [Source detection and migration notes](skills/switch-to-keiki/providers/project-blue.md) |
-| LoopMessage | [Source detection and migration notes](skills/switch-to-keiki/providers/loopmessage.md) |
-| AgentPhone | [Source detection and migration notes](skills/switch-to-keiki/providers/agentphone.md) |
-| Chert | [Source detection and migration notes](skills/switch-to-keiki/providers/chert.md) |
-| ZeroSettle / Phonetwin | [Source detection and migration notes](skills/switch-to-keiki/providers/zerosettle.md) |
-| BlueBubbles | [Source detection and migration notes](skills/switch-to-keiki/providers/bluebubbles.md) |
+| Linq | [Detect, map and verify](skills/switch-to-keiki/providers/linq.md) |
+| Photon | [Detect, map and verify](skills/switch-to-keiki/providers/photon.md) |
+| Sendblue | [Detect, map and verify](skills/switch-to-keiki/providers/sendblue.md) |
+| Inkbox | [Detect, map and verify](skills/switch-to-keiki/providers/inkbox.md) |
+| Blooio | [Detect, map and verify](skills/switch-to-keiki/providers/blooio.md) |
+| Project Blue | [Detect, map and verify](skills/switch-to-keiki/providers/project-blue.md) |
+| LoopMessage | [Detect, map and verify](skills/switch-to-keiki/providers/loopmessage.md) |
+| AgentPhone | [Detect, map and verify](skills/switch-to-keiki/providers/agentphone.md) |
+| Chert | [Detect, map and verify](skills/switch-to-keiki/providers/chert.md) |
+| ZeroSettle / Phonetwin | [Detect, map and verify](skills/switch-to-keiki/providers/zerosettle.md) |
+| BlueBubbles | [Detect, map and verify](skills/switch-to-keiki/providers/bluebubbles.md) |
 
-The [skill entrypoint](skills/switch-to-keiki/SKILL.md) routes to the workflow, plan template, provider references, Keiki target evidence, and verification checklist.
+Read the [skill entrypoint](skills/switch-to-keiki/SKILL.md), [target selector](skills/switch-to-keiki/keiki-targets.md), [plan template](skills/switch-to-keiki/plan-template.md) and [verification protocol](skills/switch-to-keiki/verification.md) for the detailed migration process.
+
+The [verification record](verification/README.md) lists the baseline audit, pinned upstream projects, and what the isolated evaluations proved.
 
 Authored and maintained by [tecxbro](https://github.com/tecxbro).
