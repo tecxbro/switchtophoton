@@ -33,7 +33,7 @@ A name alone is insufficient. Confirm active calls, handlers, fixtures, or deplo
 
 - Read the exact locked package version from lockfiles or package metadata. The official `@blooio/sdk` targets v4 and its publish cadence is stale — do not assume it matches the installed integration's generation.
 - Distinguish v2 iMessage REST, v3 enterprise, v4 multi-channel, MCP (`mcp.blooio.com`), and unofficial community adapters.
-- Report `/v3` paths separately rather than forcing them into v2 or v4.
+- Report `/v3` paths separately rather than forcing them into v2 or v4 — but `/v3` paths that are only 308 redirects to `/v4` are legacy shims, not a second generation (see fingerprints above).
 - If an exact generation cannot be proven, report `Unknown generation` or `Mixed generations` and the appropriate confidence. Low confidence is a planning blocker.
 
 ## Capabilities to inventory

@@ -123,10 +123,11 @@ Inspect repository
 → select applicable lifecycle and error model
 → compare architecture preservation and migration risk
 → prove each capability mapping
-→ decide plan verdict (executable / executable-with-changes / infeasible-rescope)
+→ decide plan verdict (executable / executable-with-approved-changes /
+  infeasible-as-specified / blocked-on-evidence)
 → identify writable execution destination and branch
 → build migration plan and capability evidence appendix
-→ request approval (skipped for infeasible verdicts)
+→ request approval (skipped when no executable path exists)
 → execute
 → verify installed versions against approved planned versions
 → verify against source and approved plan

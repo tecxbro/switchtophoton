@@ -48,6 +48,7 @@ Never override an explicit user-selected branch with the default.
 Source integration
 - Provider: <provider>
 - Repo shape: <consumer application | provider library/adapter | provider façade/MCP server/proxy | provider SDK | provisioning tooling>
+- Public API surface to preserve (library/adapter/façade repos): <exported symbols, route/tool wire contract, identifier formats, rename-vs-rewrite-vs-new-package decision, breaking-change/versioning record — or n/a>
 - Provider-boundary scope: <which providers/channels are being replaced; disposition of the rest>
 - Detection result: <exact SDK version | known REST API generation | known webhook generation | raw REST unversioned | webhook-ingress-only | generation-irrelevant | mixed generations | mixed surfaces | unknown generation>
 - Exact SDK/API generation: <specific result; per-surface breakdown when mixed>

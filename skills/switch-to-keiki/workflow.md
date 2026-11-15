@@ -28,7 +28,8 @@ Inspect repository
 → select applicable lifecycle and error model
 → compare architecture preservation and migration risk
 → prove each capability mapping
-→ decide plan verdict (executable / executable-with-changes / infeasible-rescope)
+→ decide plan verdict (executable / executable-with-approved-changes /
+  infeasible-as-specified / blocked-on-evidence)
 → identify writable execution destination and branch
 → build migration plan and capability evidence appendix
 → request approval (skipped for infeasible verdicts)
@@ -198,6 +199,8 @@ When no approved source is registered, rely on repository evidence, report the a
 A capability is in scope only when it is reachable production behavior: active code paths, deployment configuration, stored data, or operational dependence prove the application uses it. Tests, fixtures, and mocks corroborate a capability but do not by themselves make it active; example apps, docs, and dead-but-implemented adapter methods are evidence *about* the code, not active capabilities — list them as intentionally excluded unless the user says otherwise. When the repository *is* the provider SDK/library/server (see "Repo shape"), its published surface — exports, routes, tools — is the capability set unless the user narrows it.
 
 Inspect inbound and outbound text, direct and group messaging, line selection, attachments, replies, reactions, typing, read state, effects, edits, unsends, delivery states, history or polling, SMS/RCS fallback, webhook authentication and acknowledgement, retries, idempotency, deduplication, ordering, lifecycle, and persisted provider identifiers.
+
+For façade/MCP-server/proxy repo shapes, the capability surface additionally includes the wire contract itself: protocol semantics (JSON-RPC methods, batching, notification handling, error envelopes), auth/token formats the server issues or verifies, pass-through proxy routes, and non-message domains (calls, contacts, registration, tickets) — inventory them as capabilities, not just messaging flows.
 
 List unused source-provider and Keiki features as intentionally excluded. Do not map or add them.
 
